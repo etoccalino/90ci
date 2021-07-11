@@ -1,0 +1,10 @@
+[package]
+name = "ninety-ci-cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+rand = "0.6"
+regex= "1"
+lazy_static = "1"
+meval = "0.2"
