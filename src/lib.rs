@@ -94,7 +94,7 @@ fn bucketize_series(mut series: Vec<f64>, bucket_size: &f64) -> Option<(Vec<f64>
 ///     there are no variables,
 ///     a variable has type other than "uniform" or "normal",
 ///     a lower bound is greater than an upper bound.
-fn generate_freq_data(
+pub fn generate_freq_data(
     equation: &str,
     variables_description: &Vec<(&str, &str, f64, f64)>,
     n: &usize,
