@@ -20,14 +20,29 @@ fn main() {
         )
         .get_matches();
 
+    // Get and validate input.
     let equation: &str = matches.value_of("equation").unwrap();
     let vars: Vec<&str> = matches.values_of("vars").unwrap().collect();
-    println!("Vars: {:#?}", vars);
-    println!("-----------------");
-    let res = parse_variables_descriptions(&vars).unwrap();
-    let mut names: Vec<&str> = res.iter().map(|&(name, _, _, _)| name).collect();
-    println!("Parsed: {:#?}", res);
+    // println!("Vars: {:#?}", vars);
+    // println!("-----------------");
+    let parsed_variables = parse_variables_descriptions(&vars).unwrap();
+    // println!("Parsed: {:#?}", parsed_variables);
+    let mut names: Vec<&str> = parsed_variables
+        .iter()
+        .map(|&(name, _, _, _)| name)
+        .collect();
     assert!(validate_variables(equation, &mut names));
+
+    // Build the frequency data and compute the 90% C.I.
+    const iterations: usize = 5000;
+    const bucket_size: f64 = 0.1;
+    let (buckets, freqs) =
+        cli_90::generate_freq_data(equation, &parsed_variables, &iterations, &bucket_size).unwrap();
+    let (lower, upper) = cli_90::ninety_ci(&buckets, &freqs, &iterations);
+
+    println!("-----------------------------------------");
+    println!("90% C.I.: [{:.2?} ; {:.2?}]", lower, upper);
+    println!("-----------------------------------------");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -69,16 +84,12 @@ fn validate_variables(equation: &str, variables: &mut Vec<&str>) -> bool {
     let mut found: bool;
     for name in extracted_names.iter() {
         found = false;
-        println!("name={}", name);
         for var in variables.iter() {
-            println!("    var={}", var);
             if name == var {
-                println!("    break!");
                 found = true;
                 break;
             }
         }
-        println!("found={}", found);
         if !found {
             return false;
         }
