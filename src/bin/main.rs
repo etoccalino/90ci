@@ -34,11 +34,11 @@ fn main() {
     assert!(validate_variables(equation, &mut names));
 
     // Build the frequency data and compute the 90% C.I.
-    const iterations: usize = 5000;
-    const bucket_size: f64 = 0.1;
+    const ITERATIONS: usize = 5000;
+    const BUCKET_SIZE: f64 = 0.1;
     let (buckets, freqs) =
-        cli_90::generate_freq_data(equation, &parsed_variables, &iterations, &bucket_size).unwrap();
-    let (lower, upper) = cli_90::ninety_ci(&buckets, &freqs, &iterations);
+        cli_90::generate_freq_data(equation, &parsed_variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+    let (lower, upper) = cli_90::ninety_ci(&buckets, &freqs, &ITERATIONS);
 
     println!("-----------------------------------------");
     println!("90% C.I.: [{:.2?} ; {:.2?}]", lower, upper);
@@ -78,14 +78,21 @@ fn parse_variables_descriptions<'a>(
 
 fn validate_variables(equation: &str, variables: &mut Vec<&str>) -> bool {
     let extracted_names: Vec<&str> = cli_90::extract_variable_names(equation);
+    // println!(
+    //     "Validating correspondance between vars {:?}' and names '{:?}'",
+    //     variables, extracted_names
+    // );
     if extracted_names.len() != variables.len() {
         return false;
     }
     let mut found: bool;
     for name in extracted_names.iter() {
+        // println!("Searching for {:?}...", name);
         found = false;
         for var in variables.iter() {
+            // println!("    Comparing to {:?}", var);
             if name == var {
+                // println!("    match!");
                 found = true;
                 break;
             }

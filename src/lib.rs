@@ -9,10 +9,11 @@ use regex::Regex;
 pub fn extract_variable_names(equation: &str) -> Vec<&str> {
     // Compile the regex once
     lazy_static! {
-        // static ref RE: Regex = Regex::new(r"\w+").unwrap();
-        static ref RE: Regex = Regex::new(r"\W").unwrap();
+        // static ref RE: Regex = Regex::new(r"\W").unwrap();
+        static ref RE: Regex = Regex::new(r"[[:alpha:]]\w*").unwrap();
     }
-    RE.split(equation).filter(|v| !v.is_empty()).collect()
+    // RE.split(equation).filter(|v| !v.is_empty()).collect()
+    RE.find_iter(equation).map(|v| v.as_str()).collect()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -179,11 +180,19 @@ mod tests {
 
     #[test]
     fn extract_variable_names_complex_names() {
-        let variables = extract_variable_names("A_1 + some_A*1B1");
+        let variables = extract_variable_names("A_1 + some_A*B1");
         assert_eq!(variables.len(), 3);
         assert_eq!(variables[0], "A_1");
         assert_eq!(variables[1], "some_A");
-        assert_eq!(variables[2], "1B1");
+        assert_eq!(variables[2], "B1");
+    }
+
+    #[test]
+    fn extract_variable_names_with_numbers() {
+        let variables = extract_variable_names("4.5 * A_1 + 2 * some");
+        assert_eq!(variables.len(), 2);
+        assert_eq!(variables[0], "A_1");
+        assert_eq!(variables[1], "some");
     }
 
     //////////////////////////////////////////////////////////////////////
@@ -287,8 +296,4 @@ mod tests {
         assert_eq!(low, -2.);
         assert_eq!(up, 4.);
     }
-}
-
-fn main() {
-    println!("Hello, world!");
 }
