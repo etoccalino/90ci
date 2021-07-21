@@ -168,6 +168,7 @@ pub fn ninety_ci(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use more_asserts::{assert_gt, assert_lt};
 
     #[test]
     fn extract_variable_names_simple_names() {
@@ -295,5 +296,25 @@ mod tests {
         let (low, up) = ninety_ci(&buckets, &freqs, &50);
         assert_eq!(low, -2.);
         assert_eq!(up, 4.);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn integration_single_variable() {
+        // For a NORMAL random variable with a 90%CI of [1,2], the equation "1
+        // + variable" should obviously have a 90%CI of [2,3].
+        let equation: &str = "1 + VAR";
+        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 1., 2.)];
+        const ITERATIONS: usize = 5000;
+        const BUCKET_SIZE: f64 = 0.1;
+
+        let (buckets, freqs) = generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+        let (low, up) = ninety_ci(&buckets, &freqs, &50);
+
+        assert_lt!(low - 0.1, 2.0);
+        assert_gt!(low + 0.1, 2.0);
+        assert_lt!(up - 0.1, 3.0);
+        assert_gt!(up + 0.1, 3.0);
     }
 }

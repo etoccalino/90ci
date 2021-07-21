@@ -76,13 +76,14 @@ fn parse_variables_descriptions<'a>(
     Ok(res)
 }
 
+/// Validate all variables in the equation have been provided.
 fn validate_variables(equation: &str, variables: &mut Vec<&str>) -> bool {
     let extracted_names: Vec<&str> = cli_90::extract_variable_names(equation);
     // println!(
     //     "Validating correspondance between vars {:?}' and names '{:?}'",
     //     variables, extracted_names
     // );
-    if extracted_names.len() != variables.len() {
+    if extracted_names.len() > variables.len() {
         return false;
     }
     let mut found: bool;
