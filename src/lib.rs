@@ -1,7 +1,7 @@
 extern crate meval;
 
 use lazy_static::lazy_static;
-use rand::distributions::{Distribution, Normal, Uniform};
+use rand::distributions::{Normal, Uniform};
 use rand::thread_rng;
 use regex::Regex;
 
@@ -35,12 +35,12 @@ fn sample_variable(
     let mut rng = thread_rng();
     match distribution {
         // Uniform distribution is defined by the range bounds
-        "uniform" => Ok(Uniform::new_inclusive(lower, upper)
+        "uniform" => Ok(Uniform::new(lower, upper)
             .sample_iter(&mut rng)
             .take(n)
             .collect()),
 
-        // Normal requires mean (half of range) and stddev (there are 3.29 stddev in a 90% C.I. range)
+        // Normal requires mean (half point of range) and stddev (stddev fits 3.29 times in range)
         "normal" => Ok(Normal::new((upper + lower) / 2., (upper - lower) / 3.29)
             .sample_iter(&mut rng)
             .take(n)
@@ -301,17 +301,35 @@ mod tests {
     ///////////////////////////////////////////////////////////////////////////////
 
     #[test]
-    fn integration_single_variable() {
-        // For a NORMAL random variable with a 90%CI of [1,2], the equation "1
-        // + variable" should obviously have a 90%CI of [2,3].
-        let equation: &str = "1 + VAR";
+    fn integration_single_variable_normal() {
+        let equation: &str = "VAR";
         let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 1., 2.)];
         const ITERATIONS: usize = 5000;
         const BUCKET_SIZE: f64 = 0.1;
 
         let (buckets, freqs) = generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-        let (low, up) = ninety_ci(&buckets, &freqs, &50);
+        let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
 
+        println!("DEBUG - test 90% CI: [{}, {}]", low, up);
+        assert_lt!(low - 0.1, 1.0);
+        assert_gt!(low + 0.1, 1.0);
+        assert_lt!(up - 0.1, 2.0);
+        assert_gt!(up + 0.1, 2.0);
+    }
+
+    #[test]
+    fn integration_single_variable_uniform() {
+        // For a symetric random variable with a 90%CI of [1,2], the equation
+        // "1 + variable" should obviously have a 90%CI of [2,3].
+        let equation: &str = "1 + VAR";
+        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "uniform", 1., 2.)];
+        const ITERATIONS: usize = 5000;
+        const BUCKET_SIZE: f64 = 0.1;
+
+        let (buckets, freqs) = generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+        let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
+
+        println!("DEBUG - test 90% CI: [{}, {}]", low, up);
         assert_lt!(low - 0.1, 2.0);
         assert_gt!(low + 0.1, 2.0);
         assert_lt!(up - 0.1, 3.0);
