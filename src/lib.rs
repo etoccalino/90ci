@@ -1,9 +1,9 @@
 extern crate meval;
 
 use lazy_static::lazy_static;
-use rand::distributions::{Normal, Uniform};
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
 use regex::Regex;
+use statrs::distribution::{Normal, Uniform};
 
 /// Return the list of variables in the equation.
 pub fn extract_variable_names(equation: &str) -> Vec<&str> {
@@ -32,22 +32,23 @@ fn sample_variable(
         return Err("Lower bound >= upper bound");
     }
 
-    let mut rng = thread_rng();
     match distribution {
-        // Uniform distribution is defined by the range bounds
-        "uniform" => Ok(Uniform::new(lower, upper)
-            .sample_iter(&mut rng)
-            .take(n)
-            .collect()),
-
-        // Normal requires mean (half point of range) and stddev (stddev fits 3.29 times in range)
-        "normal" => Ok(Normal::new((upper + lower) / 2., (upper - lower) / 3.29)
-            .sample_iter(&mut rng)
-            .take(n)
-            .collect()),
-
+        "uniform" => Ok(_sample_uniform_variable(lower, upper, n)),
+        "normal" => Ok(_sample_normal_variable(lower, upper, n)),
         _ => Err("Unsupported distribution. Use either 'normal' or 'uniform'."),
     }
+}
+
+fn _sample_normal_variable(lower: &f64, upper: &f64, n: usize) -> Vec<f64> {
+    let dist = Normal::new((upper + lower) / 2., (upper - lower) / 3.29).unwrap();
+    let rng = thread_rng();
+    rng.sample_iter(&dist).take(n).collect()
+}
+
+fn _sample_uniform_variable(lower: &f64, upper: &f64, n: usize) -> Vec<f64> {
+    let dist = Uniform::new(*lower, *upper).unwrap();
+    let rng = thread_rng();
+    rng.sample_iter(&dist).take(n).collect()
 }
 
 /// Given a data series and a bucket size, return a pair of vectors:
@@ -168,7 +169,7 @@ pub fn ninety_ci(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use more_asserts::{assert_gt, assert_lt};
+    use statrs::assert_almost_eq;
 
     #[test]
     fn extract_variable_names_simple_names() {
@@ -307,14 +308,13 @@ mod tests {
         const ITERATIONS: usize = 5000;
         const BUCKET_SIZE: f64 = 0.1;
 
-        let (buckets, freqs) = generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+        let (buckets, freqs) =
+            generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
 
         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-        assert_lt!(low - 0.1, 1.0);
-        assert_gt!(low + 0.1, 1.0);
-        assert_lt!(up - 0.1, 2.0);
-        assert_gt!(up + 0.1, 2.0);
+        assert_almost_eq!(low, 1., 0.1);
+        assert_almost_eq!(up, 2., 0.1);
     }
 
     #[test]
@@ -326,13 +326,12 @@ mod tests {
         const ITERATIONS: usize = 5000;
         const BUCKET_SIZE: f64 = 0.1;
 
-        let (buckets, freqs) = generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+        let (buckets, freqs) =
+            generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
 
         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-        assert_lt!(low - 0.1, 2.0);
-        assert_gt!(low + 0.1, 2.0);
-        assert_lt!(up - 0.1, 3.0);
-        assert_gt!(up + 0.1, 3.0);
+        assert_almost_eq!(low, 2., 0.1);
+        assert_almost_eq!(up, 3., 0.1);
     }
 }

@@ -4,11 +4,9 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-rand = "0.6"
+rand = "0.8"
+statrs = "0.15"
 regex= "1"
 lazy_static = "1"
 meval = "0.2"
 clap = "2.33"
-
-[dev-dependencies]
-more-asserts = "0.2"
