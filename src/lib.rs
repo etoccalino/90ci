@@ -69,7 +69,7 @@ fn bucketize_series(mut series: Vec<f64>, bucket_size: &f64) -> Option<(Vec<f64>
     series.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let lowest = series.first()?;
     let highest = series.last()?;
-    let mut bucket = lowest.floor();
+    let mut bucket = lowest - lowest.rem_euclid(*bucket_size);
     while bucket <= *highest {
         buckets.push(bucket);
         bucket += bucket_size;
@@ -118,18 +118,6 @@ pub fn generate_freq_data(
             sample_variable(distribution, lower, upper, *n).map_err(|e| String::from(e))?,
         ));
     }
-
-    for (var_name, var_values) in values.iter() {
-        println!("SAMPLE FOR {}", var_name);
-        for i in 0..var_values.len() {
-            println!("    SAMPLE[{}]: {:.02}", i, var_values[i]);
-        }
-        println!(
-            "    (just so you know, the mean of that is {:.02}",
-            var_values.iter().sum::<f64>() / (*n as f64)
-        );
-    }
-
     // Evaluate the equation using the samples.
     for i in 0..*n {
         // Update the evaluation context.
@@ -163,7 +151,7 @@ pub fn ninety_ci(
     for (bucket, freq) in buckets.iter().zip(frequencies.iter()) {
         acc += *freq as f32 / *n as f32;
 
-        if acc < 0.05 {
+        if acc <= 0.05 {
             // Drag the lower bound up
             lower = bucket;
         }
@@ -324,7 +312,7 @@ mod tests {
     #[test]
     fn integration_single_variable_normal() {
         let equation: &str = "VAR";
-        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 1., 2.)];
+        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 100., 200.)];
         const ITERATIONS: usize = 5000;
         const BUCKET_SIZE: f64 = 0.1;
 
@@ -333,28 +321,8 @@ mod tests {
         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
 
         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-        assert_almost_eq!(low, 1., 0.1);
-        assert_almost_eq!(up, 2., 0.1);
-    }
-
-    #[test]
-    fn integration_single_variable_uniform_SIMPLIFIED() {
-        let equation: &str = "VAR";
-        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 1., 2.)];
-        const ITERATIONS: usize = 100;
-        const BUCKET_SIZE: f64 = 0.2;
-
-        let (buckets, freqs) =
-            generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-        println!("DEBUG - buckets and freqs");
-        for i in 0..buckets.len() {
-            println!("B={:.02} => {}", buckets[i], freqs[i]);
-        }
-        let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
-
-        println!("DEBUG - test 90% CI: [{:.02}, {:.02}]", low, up);
-        assert_almost_eq!(low, 1., 0.1);
-        assert_almost_eq!(up, 2., 0.1);
+        assert_almost_eq!(low, 100., 1.);
+        assert_almost_eq!(up, 200., 1.);
     }
 
     #[test]
