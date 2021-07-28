@@ -282,6 +282,14 @@ mod tests {
         assert_eq!(freqs, vec![1, 3, 0, 2, 3]);
     }
 
+    #[test]
+    fn bucketize_sub_unit() {
+        let data = vec![0.83, 0.96, 1.15];
+        let (buckets, freqs) = bucketize_series(data, &0.1).unwrap();
+        assert_eq!(buckets, vec![0.8, 0.9, 1.0, 1.1]);
+        assert_eq!(freqs, vec![1, 1, 0, 1]);
+    }
+
     //////////////////////////////////////////////////////////////////////
 
     #[test]
