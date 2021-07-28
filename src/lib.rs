@@ -118,6 +118,18 @@ pub fn generate_freq_data(
             sample_variable(distribution, lower, upper, *n).map_err(|e| String::from(e))?,
         ));
     }
+
+    for (var_name, var_values) in values.iter() {
+        println!("SAMPLE FOR {}", var_name);
+        for i in 0..var_values.len() {
+            println!("    SAMPLE[{}]: {:.02}", i, var_values[i]);
+        }
+        println!(
+            "    (just so you know, the mean of that is {:.02}",
+            var_values.iter().sum::<f64>() / (*n as f64)
+        );
+    }
+
     // Evaluate the equation using the samples.
     for i in 0..*n {
         // Update the evaluation context.
@@ -313,6 +325,26 @@ mod tests {
         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
 
         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
+        assert_almost_eq!(low, 1., 0.1);
+        assert_almost_eq!(up, 2., 0.1);
+    }
+
+    #[test]
+    fn integration_single_variable_uniform_SIMPLIFIED() {
+        let equation: &str = "VAR";
+        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 1., 2.)];
+        const ITERATIONS: usize = 100;
+        const BUCKET_SIZE: f64 = 0.2;
+
+        let (buckets, freqs) =
+            generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+        println!("DEBUG - buckets and freqs");
+        for i in 0..buckets.len() {
+            println!("B={:.02} => {}", buckets[i], freqs[i]);
+        }
+        let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
+
+        println!("DEBUG - test 90% CI: [{:.02}, {:.02}]", low, up);
         assert_almost_eq!(low, 1., 0.1);
         assert_almost_eq!(up, 2., 0.1);
     }
