@@ -1,0 +1,2 @@
+* Drop the 4-tuple in favor of a VariableDescription custom type.
+* Use anyhow error.

@@ -5,6 +5,24 @@ use rand::{thread_rng, Rng};
 use regex::Regex;
 use statrs::distribution::{Normal, Uniform};
 
+pub struct VariableDescription<'a> {
+    pub name: &'a str,
+    pub shape: &'a str,
+    pub lower: f64,
+    pub upper: f64,
+}
+
+impl<'a> VariableDescription<'a> {
+    pub fn new(name: &'a str, distribution: &'a str, lower_bound: f64, upper_bound: f64) -> Self {
+        VariableDescription {
+            name,
+            shape: distribution,
+            lower: lower_bound,
+            upper: upper_bound,
+        }
+    }
+}
+
 /// Return the list of variables in the equation.
 pub fn extract_variable_names(equation: &str) -> Vec<&str> {
     // Compile the regex once
@@ -28,7 +46,7 @@ fn sample_variable(
     upper: &f64,
     n: usize,
 ) -> Result<Vec<f64>, &'static str> {
-    if lower >= upper {
+    if *lower >= *upper {
         return Err("Lower bound >= upper bound");
     }
 
@@ -98,7 +116,7 @@ fn bucketize_series(mut series: Vec<f64>, bucket_size: &f64) -> Option<(Vec<f64>
 ///     a lower bound is greater than an upper bound.
 pub fn generate_freq_data(
     equation: &str,
-    variables_description: &Vec<(&str, &str, f64, f64)>,
+    variables_description: &Vec<VariableDescription>,
     n: &usize,
     bucket_size: &f64,
 ) -> Result<(Vec<f64>, Vec<usize>), String> {
@@ -111,11 +129,16 @@ pub fn generate_freq_data(
     let mut series: Vec<f64> = Vec::with_capacity(*n); // Hold results of evaluating the equation.
 
     // Sample all the variables in the equation.
-    for (var_name, distribution, lower, upper) in variables_description {
-        // let (var_name, distribution, lower, upper) = description;
+    for description in variables_description {
         values.push((
-            var_name,
-            sample_variable(distribution, lower, upper, *n).map_err(|e| String::from(e))?,
+            description.name,
+            sample_variable(
+                description.shape,
+                &description.lower,
+                &description.upper,
+                *n,
+            )
+            .map_err(|e| String::from(e))?,
         ));
     }
     // Evaluate the equation using the samples.
@@ -217,25 +240,28 @@ mod tests {
 
     #[test]
     fn generate_freq_data_empty_variable_type() {
-        let vars: Vec<(&str, &str, f64, f64)> = vec![];
+        let vars: Vec<VariableDescription> = vec![];
         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
     }
 
     #[test]
     fn generate_freq_data_incorrect_variable_type() {
-        let vars = vec![("V1", "incorrect", 1., 1.)];
+        let vars = vec![VariableDescription::new("V1", "incorrect", 1., 1.)];
         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
     }
 
     #[test]
     fn generate_freq_data_incorrect_bounds() {
-        let vars = vec![("V1", "uniform", 2., 1.)];
+        let vars = vec![VariableDescription::new("V1", "uniform", 2., 1.)];
         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
     }
 
     #[test]
     fn generate_freq_data_check_size() {
-        let vars = vec![("V1", "uniform", 1., 2.), ("V2", "normal", 1., 2.)];
+        let vars = vec![
+            VariableDescription::new("V1", "uniform", 1., 2.),
+            VariableDescription::new("V2", "normal", 1., 2.),
+        ];
         let (buckets, freqs) = generate_freq_data("1", &vars, &100, &1.).unwrap();
         assert_eq!(buckets.len(), freqs.len());
     }
@@ -312,7 +338,8 @@ mod tests {
     #[test]
     fn integration_single_variable_normal() {
         let equation: &str = "VAR";
-        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "normal", 100., 200.)];
+        let variables: Vec<VariableDescription> =
+            vec![VariableDescription::new("VAR", "normal", 100., 200.)];
         const ITERATIONS: usize = 5000;
         const BUCKET_SIZE: f64 = 0.1;
 
@@ -330,7 +357,8 @@ mod tests {
         // For a symetric random variable with a 90%CI of [1,2], the equation
         // "1 + variable" should obviously have a 90%CI of [2,3].
         let equation: &str = "1 + VAR";
-        let variables: Vec<(&str, &str, f64, f64)> = vec![("VAR", "uniform", 1., 2.)];
+        let variables: Vec<VariableDescription> =
+            vec![VariableDescription::new("VAR", "uniform", 1., 2.)];
         const ITERATIONS: usize = 5000;
         const BUCKET_SIZE: f64 = 0.1;
 

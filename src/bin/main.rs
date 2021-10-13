@@ -29,7 +29,7 @@ fn main() {
     // println!("Parsed: {:#?}", parsed_variables);
     let mut names: Vec<&str> = parsed_variables
         .iter()
-        .map(|&(name, _, _, _)| name)
+        .map(|description| description.name)
         .collect();
     assert!(validate_variables(equation, &mut names));
 
@@ -56,8 +56,8 @@ fn main() {
 /// * `lower < upper`
 fn parse_variables_descriptions<'a>(
     descriptions: &Vec<&'a str>,
-) -> Result<Vec<(&'a str, &'a str, f64, f64)>, String> {
-    let mut res: Vec<(&str, &str, f64, f64)> = Vec::with_capacity(descriptions.len());
+) -> Result<Vec<cli_90::VariableDescription<'a>>, String> {
+    let mut res: Vec<cli_90::VariableDescription> = Vec::with_capacity(descriptions.len());
     let mut _lower: f64 = 0.;
     let mut _upper: f64 = 0.;
     let mut fields: Vec<&str>;
@@ -71,7 +71,9 @@ fn parse_variables_descriptions<'a>(
         }
         _lower = fields[2].parse().unwrap();
         _upper = fields[3].parse().unwrap();
-        res.push((fields[0], fields[1], _lower, _upper));
+        res.push(cli_90::VariableDescription::new(
+            fields[0], fields[1], _lower, _upper,
+        ));
     }
     Ok(res)
 }
