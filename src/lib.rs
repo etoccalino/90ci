@@ -34,6 +34,8 @@ pub fn extract_variable_names(equation: &str) -> Vec<&str> {
     RE.find_iter(equation).map(|v| v.as_str()).collect()
 }
 
+
+
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Return a series of samples of a random variable described by either "uniform" or "normal".
@@ -115,11 +117,11 @@ fn bucketize_series(mut series: Vec<f64>, bucket_size: &f64) -> Option<(Vec<f64>
 ///     a lower bound is greater than an upper bound.
 pub fn generate_freq_data(
     equation: &str,
-    variables_description: &Vec<VariableDescription>,
+    variables_description: &[VariableDescription],
     n: &usize,
     bucket_size: &f64,
 ) -> Result<(Vec<f64>, Vec<usize>), String> {
-    if variables_description.len() < 1 {
+    if variables_description.is_empty() {
         return Err(String::from("No variables to evaluate"));
     }
 
@@ -154,14 +156,14 @@ pub fn generate_freq_data(
         }
     }
 
-    bucketize_series(series, bucket_size).ok_or(String::from("Error bucket'ing the data series"))
+    bucketize_series(series, bucket_size).ok_or_else(|| String::from("Error bucket'ing the data series"))
 }
 
 /// Given the frequency data (buckets, frequencies), return a pair of buckets
 /// which represent the range for the 90% confidence interval of the sample.
 pub fn ninety_ci(
-    buckets: &Vec<f64>,
-    frequencies: &Vec<usize>,
+    buckets: &[f64],
+    frequencies: &[usize],
     n: &usize, // sum(frequencies)
 ) -> (f64, f64) {
     // Accumulating the frequencies from first to last, the 90CI range is found as:
