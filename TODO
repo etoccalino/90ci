@@ -1,3 +1,4 @@
+* Try the LSP suggestions (there are many, and they seem good).
 * Drop the 4-tuple in favor of a VariableDescription custom type.
 * Use anyhow error.
 * Support integer (non-continuous) variables.
