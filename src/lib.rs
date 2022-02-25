@@ -37,9 +37,8 @@ pub fn extract_variable_names(equation: &str) -> Vec<&str> {
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Return a series of samples of a random variable described by either "uniform" or "normal".
-/// Fail if
-///     a variable has type other than "uniform" or "normal",
-///     a lower bound is greater than an upper bound.
+/// Fail if a variable has type other than "uniform" or "normal", or a lower bound is greater than
+/// an upper bound.
 fn sample_variable(
     distribution: &str,
     lower: &f64,
@@ -138,7 +137,7 @@ pub fn generate_freq_data(
                 &description.upper,
                 *n,
             )
-            .map_err(|e| String::from(e))?,
+            .map_err(String::from)?,
         ));
     }
     // Evaluate the equation using the samples.
