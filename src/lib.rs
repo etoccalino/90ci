@@ -1,5 +1,6 @@
 extern crate meval;
 
+use anyhow::{Result, bail, anyhow};
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use regex::Regex;
@@ -46,15 +47,15 @@ fn sample_variable(
     lower: &f64,
     upper: &f64,
     n: usize,
-) -> Result<Vec<f64>, &'static str> {
+) -> Result<Vec<f64>> {
     if *lower >= *upper {
-        return Err("Lower bound >= upper bound");
+        bail!("Lower bound >= upper bound");
     }
 
     match distribution {
         "uniform" => Ok(_sample_uniform_variable(lower, upper, n)),
         "normal" => Ok(_sample_normal_variable(lower, upper, n)),
-        _ => Err("Unsupported distribution. Use either 'normal' or 'uniform'."),
+        _ => bail!("Unsupported distribution. Use either 'normal' or 'uniform'."),
     }
 }
 
@@ -120,9 +121,9 @@ pub fn generate_freq_data(
     variables_description: &[VariableDescription],
     n: &usize,
     bucket_size: &f64,
-) -> Result<(Vec<f64>, Vec<usize>), String> {
+) -> Result<(Vec<f64>, Vec<usize>)> {
     if variables_description.is_empty() {
-        return Err(String::from("No variables to evaluate"));
+        bail!("No variables to evaluate");
     }
 
     let mut values: Vec<(&str, Vec<f64>)> = Vec::with_capacity(variables_description.len()); // Hold the random variable samples.
@@ -138,8 +139,7 @@ pub fn generate_freq_data(
                 &description.lower,
                 &description.upper,
                 *n,
-            )
-            .map_err(String::from)?,
+            )?,
         ));
     }
     // Evaluate the equation using the samples.
@@ -151,12 +151,12 @@ pub fn generate_freq_data(
         match meval::eval_str_with_context(equation, &ctx) {
             Ok(result) => series.push(result),
             Err(e) => {
-                return Err(format!("Error evaluating the equation: {:?}", e));
+                bail!("Error evaluating the equation: {:?}", e);
             }
         }
     }
 
-    bucketize_series(series, bucket_size).ok_or_else(|| String::from("Error bucket'ing the data series"))
+    bucketize_series(series, bucket_size).ok_or_else(|| anyhow!("Error bucket'ing the data series"))
 }
 
 /// Given the frequency data (buckets, frequencies), return a pair of buckets
