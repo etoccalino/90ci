@@ -1,6 +1,6 @@
 extern crate meval;
 
-use anyhow::{Result, bail, anyhow};
+use anyhow::{anyhow, bail, Result};
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use regex::Regex;
@@ -35,19 +35,12 @@ pub fn extract_variable_names(equation: &str) -> Vec<&str> {
     RE.find_iter(equation).map(|v| v.as_str()).collect()
 }
 
-
-
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Return a series of samples of a random variable described by either "uniform" or "normal".
 /// Fail if a variable has type other than "uniform" or "normal", or a lower bound is greater than
 /// an upper bound.
-fn sample_variable(
-    distribution: &str,
-    lower: &f64,
-    upper: &f64,
-    n: usize,
-) -> Result<Vec<f64>> {
+fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Result<Vec<f64>> {
     if *lower >= *upper {
         bail!("Lower bound >= upper bound");
     }

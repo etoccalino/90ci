@@ -1,5 +1,5 @@
+use anyhow::{bail, Result};
 use clap::{App, Arg};
-use cli_90;
 
 fn main() {
     let matches = App::new("90ci")
@@ -55,8 +55,8 @@ fn main() {
 /// * each of `lower` and `upper` parse to a f64
 /// * `lower < upper`
 fn parse_variables_descriptions<'a>(
-    descriptions: &Vec<&'a str>,
-) -> Result<Vec<cli_90::VariableDescription<'a>>, String> {
+    descriptions: &[&'a str],
+) -> Result<Vec<cli_90::VariableDescription<'a>>> {
     let mut res: Vec<cli_90::VariableDescription> = Vec::with_capacity(descriptions.len());
     let mut _lower: f64 = 0.;
     let mut _upper: f64 = 0.;
@@ -64,10 +64,7 @@ fn parse_variables_descriptions<'a>(
     for description in descriptions.iter() {
         fields = description.split(',').collect();
         if fields.len() != 4 {
-            return Err(format!(
-                "Incorrect number of fields in description: {}",
-                description
-            ));
+            bail!("Incorrect number of fields in description: {}", description);
         }
         _lower = fields[2].parse().unwrap();
         _upper = fields[3].parse().unwrap();
