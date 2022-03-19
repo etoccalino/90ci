@@ -71,7 +71,7 @@ fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Re
         }
         "uniform" => Distro::U(Uniform::new(*lower, *upper).unwrap()),
         "normal" => Distro::N(Normal::new((upper + lower) / 2., (upper - lower) / 3.29).unwrap()),
-        _ => bail!("Unsupported distribution. Use either 'normal' or 'uniform'."),
+        _ => bail!("Unsupported distribution. Use either 'normal', 'range' or 'uniform'."),
     };
 
     let rng = thread_rng();
