@@ -2,9 +2,25 @@ extern crate meval;
 
 use anyhow::{anyhow, bail, Result};
 use lazy_static::lazy_static;
+use rand::distributions::Distribution;
 use rand::{thread_rng, Rng};
 use regex::Regex;
 use statrs::distribution::{Normal, Uniform};
+
+enum Distro {
+    N(Normal),
+    U(Uniform),
+}
+
+impl Distribution<f64> for Distro {
+    // https://docs.rs/rand/0.8.5/rand/distributions/trait.Distribution.html
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
+        match self {
+            Distro::N(distro) => distro.sample(rng),
+            Distro::U(distro) => distro.sample(rng),
+        }
+    }
+}
 
 pub struct VariableDescription<'a> {
     pub name: &'a str,
@@ -45,23 +61,14 @@ fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Re
         bail!("Lower bound >= upper bound");
     }
 
-    match distribution {
-        "uniform" => Ok(_sample_uniform_variable(lower, upper, n)),
-        "normal" => Ok(_sample_normal_variable(lower, upper, n)),
+    let dist = match distribution {
+        "uniform" => Distro::U(Uniform::new(*lower, *upper).unwrap()),
+        "normal" => Distro::N(Normal::new((upper + lower) / 2., (upper - lower) / 3.29).unwrap()),
         _ => bail!("Unsupported distribution. Use either 'normal' or 'uniform'."),
-    }
-}
+    };
 
-fn _sample_normal_variable(lower: &f64, upper: &f64, n: usize) -> Vec<f64> {
-    let dist = Normal::new((upper + lower) / 2., (upper - lower) / 3.29).unwrap();
     let rng = thread_rng();
-    rng.sample_iter(&dist).take(n).collect()
-}
-
-fn _sample_uniform_variable(lower: &f64, upper: &f64, n: usize) -> Vec<f64> {
-    let dist = Uniform::new(*lower, *upper).unwrap();
-    let rng = thread_rng();
-    rng.sample_iter(&dist).take(n).collect()
+    Ok(rng.sample_iter(&dist).take(n).collect())
 }
 
 /// Given a data series and a bucket size, return a pair of vectors:
