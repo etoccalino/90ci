@@ -5,11 +5,12 @@ use lazy_static::lazy_static;
 use rand::distributions::Distribution;
 use rand::{thread_rng, Rng};
 use regex::Regex;
-use statrs::distribution::{Normal, Uniform};
+use statrs::distribution::{DiscreteUniform, Normal, Uniform};
 
 enum Distro {
     N(Normal),
     U(Uniform),
+    DU(DiscreteUniform),
 }
 
 impl Distribution<f64> for Distro {
@@ -18,6 +19,7 @@ impl Distribution<f64> for Distro {
         match self {
             Distro::N(distro) => distro.sample(rng),
             Distro::U(distro) => distro.sample(rng),
+            Distro::DU(distro) => distro.sample(rng),
         }
     }
 }
@@ -62,6 +64,11 @@ fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Re
     }
 
     let dist = match distribution {
+        "range" => {
+            let l = (*lower).floor() as i64;
+            let u = (*upper).floor() as i64;
+            Distro::DU(DiscreteUniform::new(l, u).unwrap())
+        }
         "uniform" => Distro::U(Uniform::new(*lower, *upper).unwrap()),
         "normal" => Distro::N(Normal::new((upper + lower) / 2., (upper - lower) / 3.29).unwrap()),
         _ => bail!("Unsupported distribution. Use either 'normal' or 'uniform'."),
@@ -236,6 +243,10 @@ mod tests {
     #[test]
     fn sample_variable_size_correct() {
         let sample = sample_variable("uniform", &1., &2., 100).unwrap();
+        assert_eq!(sample.len(), 100);
+        let sample = sample_variable("normal", &1., &2., 100).unwrap();
+        assert_eq!(sample.len(), 100);
+        let sample = sample_variable("range", &1., &2., 100).unwrap();
         assert_eq!(sample.len(), 100);
     }
 
