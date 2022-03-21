@@ -2,7 +2,7 @@ extern crate meval;
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, bail, Result};
 use lazy_static::lazy_static;
 use rand::distributions::Distribution;
 use rand::{thread_rng, Rng};
@@ -68,19 +68,24 @@ impl<'a> VariableDescription<'a> {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-enum Equation {
-    UnderDefined,
-    FullyDefined,
-    OverDefined,
-    Invalid,
-}
-
-struct UnderDefined<'a> {
+pub struct Equation<'a, Status> {
     eq: &'a str,                      // String representation of the equation
     step: usize,                      // size of buckets
     vars: HashMap<&'a str, Vec<f64>>, // Variables ready to be used
     var_names: HashSet<&'a str>,      // List variables needed to define the equation
+    status: Status,                   // Current status of the equation
 }
+
+struct UnderDefined;
+struct FullyDefined;
+
+enum ValidEquation<'a> {
+    Partial(Equation<'a, UnderDefined>),
+    Full(Equation<'a, FullyDefined>),
+}
+
+// struct OverDefined { extra_vars: &[Variabledescription] };
+// struct Invalid { errors: &[Error] };
 
 fn extract_variable_names(equation: &str) -> Vec<&str> {
     // Compile the regex once
@@ -92,52 +97,53 @@ fn extract_variable_names(equation: &str) -> Vec<&str> {
     RE.find_iter(equation).map(|v| v.as_str()).collect()
 }
 
-impl<'a> UnderDefined<'a> {
-    pub fn new(eq: &'a str, step: usize) -> Self {
-        let names = extract_variable_names(eq);
-        UnderDefined {
+/// To easily transition an equation
+impl<'a, Status> Equation<'a, Status> {
+    fn new(eq: &'a str) -> Equation<'a, UnderDefined> {
+        // <-- this hides the status type! I want to be explicit: Equation<'a, UnderDefined>
+        let var_names = extract_variable_names(eq);
+        Equation {
             eq,
-            step,
-            vars: HashMap::with_capacity(names.len()),
-            var_names: names.into_iter().collect(),
+            step: 0,
+            vars: HashMap::with_capacity(var_names.len()),
+            var_names: var_names.into_iter().collect(),
+            status: UnderDefined,
         }
     }
 
-    pub fn add_var(self, var: &'a VariableDescription) -> Result<Equation> {
+    fn with_status<NewStatus>(self, new: NewStatus) -> Equation<'a, NewStatus> {
+        Equation {
+            status: new,
+            eq: self.eq,
+            step: self.step,
+            vars: self.vars,
+            var_names: self.var_names,
+        }
+        // I wish I could replace that with: Equation { status: new, ..self }
+    }
+}
+
+impl<'a> Equation<'a, UnderDefined> {
+    pub fn add_variable(mut self, var: &'a VariableDescription) -> Result<ValidEquation<'a>> {
         if !self.var_names.contains(var.name) {
             bail!("Variable {} not mentioned in the equation", var.name);
         }
 
-        let sample = sample_variable(var.shape, &var.lower, &var.upper, self.step)?;
+        let sample: Vec<f64> = sample_variable(var.shape, &var.lower, &var.upper, self.step)?;
         self.vars.insert(var.name, sample);
 
         if self.vars.len() < self.var_names.len() {
-            Ok(self)
+            Ok(ValidEquation::Partial(self))
         } else {
-            Ok(FullyDefined {
-                vars: self.vars,
-                ..self
-            })
+            Ok(ValidEquation::Full(Equation::with_status(
+                self,
+                FullyDefined,
+            )))
         }
     }
 }
 
-struct FullyDefined<'a> {
-    eq: &'a str,                    // String representation of the equation
-    step: usize,                    // size of buckets
-    vars: HashMap<&'a str, Distro>, // Variables ready to be used
-}
-
-struct OverDefined<'a> {
-    eq: &'a str,                    // String representation of the equation
-    vars: HashMap<&'a str, Distro>, // Variables ready to be used
-    var_names: HashSet<&'a str>,    // List variables needed to define the equation
-}
-
-struct Invalid<'a> {
-    eq: &'a str, // String representation of the equation
-    error: Error,
-}
+impl<'a> Equation<'a, FullyDefined> {}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -145,21 +151,7 @@ struct Invalid<'a> {
 /// Fail if a variable has type other than "uniform", "range" or "normal", or a lower bound is
 /// greater than an upper bound.
 fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Result<Vec<f64>> {
-    if *lower >= *upper {
-        bail!("Lower bound >= upper bound");
-    }
-
-    let dist = match distribution {
-        "range" => {
-            let l: i64 = (*lower).floor() as i64;
-            let u = (*upper).floor() as i64;
-            Distro::DU(DiscreteUniform::new(l, u).unwrap())
-        }
-        "uniform" => Distro::U(Uniform::new(*lower, *upper).unwrap()),
-        "normal" => Distro::N(Normal::new((upper + lower) / 2., (upper - lower) / 3.29).unwrap()),
-        _ => bail!("Unsupported distribution. Use either 'normal', 'range' or 'uniform'."),
-    };
-
+    let dist: Distro = Distro::new(distribution, *lower, *upper)?;
     let rng = thread_rng();
     Ok(rng.sample_iter(&dist).take(n).collect())
 }
