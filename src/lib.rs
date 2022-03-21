@@ -1,16 +1,38 @@
 extern crate meval;
 
-use anyhow::{anyhow, bail, Result};
+use std::collections::{HashMap, HashSet};
+
+use anyhow::{anyhow, bail, Error, Result};
 use lazy_static::lazy_static;
 use rand::distributions::Distribution;
 use rand::{thread_rng, Rng};
 use regex::Regex;
 use statrs::distribution::{DiscreteUniform, Normal, Uniform};
 
+///////////////////////////////////////////////////////////////////////////////
+/// A Distro can be sampled, and therefor used by the `rand` package.
 enum Distro {
     N(Normal),
     U(Uniform),
     DU(DiscreteUniform),
+}
+
+impl Distro {
+    pub fn new(name: &str, lower_bound: f64, upper_bound: f64) -> Result<Self> {
+        match name {
+            "range" => {
+                let l: i64 = (lower_bound).floor() as i64;
+                let u = (upper_bound).floor() as i64;
+                Ok(Distro::DU(DiscreteUniform::new(l, u)?))
+            }
+            "uniform" => Ok(Distro::U(Uniform::new(lower_bound, upper_bound)?)),
+            "normal" => Ok(Distro::N(Normal::new(
+                (upper_bound + lower_bound) / 2.,
+                (upper_bound - lower_bound) / 3.29,
+            )?)),
+            _ => bail!("Unsupported distribution. Use either 'normal', 'range' or 'uniform'."),
+        }
+    }
 }
 
 impl Distribution<f64> for Distro {
@@ -24,6 +46,8 @@ impl Distribution<f64> for Distro {
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// Use VariableDescription to define a variable
 pub struct VariableDescription<'a> {
     pub name: &'a str,
     pub shape: &'a str,
@@ -42,8 +66,23 @@ impl<'a> VariableDescription<'a> {
     }
 }
 
-/// Return the list of variables in the equation.
-pub fn extract_variable_names(equation: &str) -> Vec<&str> {
+///////////////////////////////////////////////////////////////////////////////
+
+enum Equation {
+    UnderDefined,
+    FullyDefined,
+    OverDefined,
+    Invalid,
+}
+
+struct UnderDefined<'a> {
+    eq: &'a str,                      // String representation of the equation
+    step: usize,                      // size of buckets
+    vars: HashMap<&'a str, Vec<f64>>, // Variables ready to be used
+    var_names: HashSet<&'a str>,      // List variables needed to define the equation
+}
+
+fn extract_variable_names(equation: &str) -> Vec<&str> {
     // Compile the regex once
     lazy_static! {
         // static ref RE: Regex = Regex::new(r"\W").unwrap();
@@ -53,11 +92,58 @@ pub fn extract_variable_names(equation: &str) -> Vec<&str> {
     RE.find_iter(equation).map(|v| v.as_str()).collect()
 }
 
+impl<'a> UnderDefined<'a> {
+    pub fn new(eq: &'a str, step: usize) -> Self {
+        let names = extract_variable_names(eq);
+        UnderDefined {
+            eq,
+            step,
+            vars: HashMap::with_capacity(names.len()),
+            var_names: names.into_iter().collect(),
+        }
+    }
+
+    pub fn add_var(self, var: &'a VariableDescription) -> Result<Equation> {
+        if !self.var_names.contains(var.name) {
+            bail!("Variable {} not mentioned in the equation", var.name);
+        }
+
+        let sample = sample_variable(var.shape, &var.lower, &var.upper, self.step)?;
+        self.vars.insert(var.name, sample);
+
+        if self.vars.len() < self.var_names.len() {
+            Ok(self)
+        } else {
+            Ok(FullyDefined {
+                vars: self.vars,
+                ..self
+            })
+        }
+    }
+}
+
+struct FullyDefined<'a> {
+    eq: &'a str,                    // String representation of the equation
+    step: usize,                    // size of buckets
+    vars: HashMap<&'a str, Distro>, // Variables ready to be used
+}
+
+struct OverDefined<'a> {
+    eq: &'a str,                    // String representation of the equation
+    vars: HashMap<&'a str, Distro>, // Variables ready to be used
+    var_names: HashSet<&'a str>,    // List variables needed to define the equation
+}
+
+struct Invalid<'a> {
+    eq: &'a str, // String representation of the equation
+    error: Error,
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Return a series of samples of a random variable described by either "uniform" or "normal".
-/// Fail if a variable has type other than "uniform" or "normal", or a lower bound is greater than
-/// an upper bound.
+/// Fail if a variable has type other than "uniform", "range" or "normal", or a lower bound is
+/// greater than an upper bound.
 fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Result<Vec<f64>> {
     if *lower >= *upper {
         bail!("Lower bound >= upper bound");
@@ -65,7 +151,7 @@ fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Re
 
     let dist = match distribution {
         "range" => {
-            let l = (*lower).floor() as i64;
+            let l: i64 = (*lower).floor() as i64;
             let u = (*upper).floor() as i64;
             Distro::DU(DiscreteUniform::new(l, u).unwrap())
         }
