@@ -23,11 +23,7 @@ fn main() {
     // Get and validate input.
     let equation: &str = matches.value_of("equation").unwrap();
     let vars: Vec<&str> = matches.values_of("vars").unwrap().collect();
-    // println!("Vars: {:#?}", vars);
-    // println!("-----------------");
-    // println!("Parsed: {:#?}", parsed_vars);
 
-    // Build the frequency data and compute the 90% C.I.
     const ITERATIONS: usize = 5000;
     const BUCKET_SIZE: f64 = 0.1;
     let (lower, upper) = cli_90::ci90(
@@ -66,11 +62,12 @@ fn parse_variables_descriptions<'a>(
         if fields.len() != 4 {
             bail!("Incorrect number of fields in description: {}", description);
         }
-        _lower = fields[2].parse().unwrap();
-        _upper = fields[3].parse().unwrap();
-        res.push(cli_90::VariableDescription::new(
-            fields[0], fields[1], _lower, _upper,
-        ));
+        res.push(cli_90::VariableDescription {
+            name: fields[0],
+            shape: fields[1],
+            lower: fields[2].parse().unwrap(),
+            upper: fields[3].parse().unwrap(),
+        });
     }
     Ok(res)
 }

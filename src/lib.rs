@@ -47,34 +47,13 @@ impl Distribution<f64> for Distro {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Use VariableDescription to define a variable
-#[derive(Debug)]
-pub struct VariableDescription<'a> {
-    pub name: &'a str,
-    pub shape: &'a str,
-    pub lower: f64,
-    pub upper: f64,
-}
-
-impl<'a> VariableDescription<'a> {
-    pub fn new(name: &'a str, distribution: &'a str, lower_bound: f64, upper_bound: f64) -> Self {
-        VariableDescription {
-            name,
-            shape: distribution,
-            lower: lower_bound,
-            upper: upper_bound,
-        }
-    }
-}
-
-///////////////////////////////////////////////////////////////////////////////
 
 /// A histogram represented as a list of "bucket (upper) bounds" and the number of samples that
 /// fell in it.
 type Histogram = (Vec<f64>, Vec<usize>);
 
 struct Equation<'a, Status> {
-    status: Status,                   // Current status of the equation
+    _status: Status,                  // Current status of the equation
     eq: &'a str,                      // String representation of the equation
     step: f64,                        // size of buckets
     resolution: usize,                // number of samples to take for each distribution
@@ -91,7 +70,6 @@ enum ValidEquation<'a> {
     Partial(Equation<'a, UnderDefined>),
     Full(Equation<'a, FullyDefined>),
 }
-// struct OverDefined { extra_vars: &[Variabledescription] };
 // struct Invalid { errors: &[Error] };
 
 /// To easily transition an equation
@@ -105,25 +83,25 @@ impl<'a, Status> Equation<'a, Status> {
         let resolution = samples_num.unwrap_or(5_000);
         let step = step_size.unwrap_or(0.1);
         Equation {
+            _status: UnderDefined,
             eq,
-            resolution,
             step,
+            resolution,
             vars: HashMap::with_capacity(var_names.len()),
             var_names: var_names.into_iter().collect(),
             hist: None,
-            status: UnderDefined,
         }
     }
 
     fn with_status<NewStatus>(self, new: NewStatus) -> Equation<'a, NewStatus> {
         Equation {
-            status: new,
+            _status: new,
             eq: self.eq,
             step: self.step,
             resolution: self.resolution,
             vars: self.vars,
-            hist: self.hist,
             var_names: self.var_names,
+            hist: self.hist,
         }
         // I wish I could replace that with: Equation { status: new, ..self }
     }
@@ -288,8 +266,17 @@ impl<'a> Equation<'a, Evaluated> {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// Entrypoint to the library.
-// Use the `VariableDescription` and the `ci90()` function.
+/// Use VariableDescription to define a variable
+#[derive(Debug)]
+pub struct VariableDescription<'a> {
+    pub name: &'a str,
+    pub shape: &'a str,
+    pub lower: f64,
+    pub upper: f64,
+}
+
+/// Entrypoint to the library.
+/// Use the `VariableDescription` and the `ci90()` function.
 pub fn ci90(
     eq: &str,
     vars: &[VariableDescription],
@@ -303,196 +290,198 @@ pub fn ci90(
         Equation::<UnderDefined>::new(eq, Some(*iterations), Some(*step)); // I have to explicitly annotate Equation::<UnderDefined> !?
 
     match initial_model.add_variables(vars)? {
-        ValidEquation::Partial(_) => bail!("Variables missing"),
         ValidEquation::Full(equation) => equation.evaluate()?.ninety_ci(),
+        _ => bail!("Variables missing"),
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use statrs::assert_almost_eq;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    //     use statrs::assert_almost_eq;
 
-//     #[test]
-//     fn extract_variable_names_simple_names() {
-//         let variables = extract_variable_names("A1 + A2 - B");
-//         assert_eq!(variables.len(), 3);
-//         assert_eq!(variables[0], "A1");
-//         assert_eq!(variables[1], "A2");
-//         assert_eq!(variables[2], "B");
-//     }
+    // Tests for Equation<UnderDefined> ///////////////////////////////////
 
-//     #[test]
-//     fn extract_variable_names_complex_names() {
-//         let variables = extract_variable_names("A_1 + some_A*B1");
-//         assert_eq!(variables.len(), 3);
-//         assert_eq!(variables[0], "A_1");
-//         assert_eq!(variables[1], "some_A");
-//         assert_eq!(variables[2], "B1");
-//     }
+    #[test]
+    fn extract_variable_names_simple_names() {
+        let variables = Equation::<UnderDefined>::extract_variable_names("A1 + A2 - B");
+        assert_eq!(variables.len(), 3);
+        assert_eq!(variables[0], "A1");
+        assert_eq!(variables[1], "A2");
+        assert_eq!(variables[2], "B");
+    }
 
-//     #[test]
-//     fn extract_variable_names_with_numbers() {
-//         let variables = extract_variable_names("4.5 * A_1 + 2 * some");
-//         assert_eq!(variables.len(), 2);
-//         assert_eq!(variables[0], "A_1");
-//         assert_eq!(variables[1], "some");
-//     }
+    #[test]
+    fn extract_variable_names_complex_names() {
+        let variables = Equation::<UnderDefined>::extract_variable_names("A_1 + some_A*B1");
+        assert_eq!(variables.len(), 3);
+        assert_eq!(variables[0], "A_1");
+        assert_eq!(variables[1], "some_A");
+        assert_eq!(variables[2], "B1");
+    }
 
-//     //////////////////////////////////////////////////////////////////////
+    #[test]
+    fn extract_variable_names_with_numbers() {
+        let variables = Equation::<UnderDefined>::extract_variable_names("4.5 * A_1 + 2 * some");
+        assert_eq!(variables.len(), 2);
+        assert_eq!(variables[0], "A_1");
+        assert_eq!(variables[1], "some");
+    }
 
-//     #[test]
-//     fn sample_variable_incorrect_type() {
-//         assert!(sample_variable("incorrect", &1., &2., 1).is_err());
-//     }
+    #[test]
+    fn sample_variable_incorrect_type() {
+        assert!(Equation::<UnderDefined>::sample_variable("incorrect", &1., &2., 1).is_err());
+    }
 
-//     #[test]
-//     fn sample_variable_incorrect_bounds() {
-//         assert!(sample_variable("incorrect", &2., &1., 1).is_err());
-//     }
+    #[test]
+    fn sample_variable_incorrect_bounds() {
+        assert!(Equation::<UnderDefined>::sample_variable("incorrect", &2., &1., 1).is_err());
+    }
 
-//     #[test]
-//     fn sample_variable_size_correct() {
-//         let sample = sample_variable("uniform", &1., &2., 100).unwrap();
-//         assert_eq!(sample.len(), 100);
-//         let sample = sample_variable("normal", &1., &2., 100).unwrap();
-//         assert_eq!(sample.len(), 100);
-//         let sample = sample_variable("range", &1., &2., 100).unwrap();
-//         assert_eq!(sample.len(), 100);
-//     }
+    #[test]
+    fn sample_variable_size_correct() {
+        let sample = Equation::<UnderDefined>::sample_variable("uniform", &1., &2., 100).unwrap();
+        assert_eq!(sample.len(), 100);
+        let sample = Equation::<UnderDefined>::sample_variable("normal", &1., &2., 100).unwrap();
+        assert_eq!(sample.len(), 100);
+        let sample = Equation::<UnderDefined>::sample_variable("range", &1., &2., 100).unwrap();
+        assert_eq!(sample.len(), 100);
+    }
 
-//     #[test]
-//     fn generate_freq_data_empty_variable_type() {
-//         let vars: Vec<VariableDescription> = vec![];
-//         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
-//     }
+    ///////////////////////////////////////////////////////////////////////////////
 
-//     #[test]
-//     fn generate_freq_data_incorrect_variable_type() {
-//         let vars = vec![VariableDescription::new("V1", "incorrect", 1., 1.)];
-//         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
-//     }
+    //     #[test]
+    //     fn generate_freq_data_empty_variable_type() {
+    //         let vars: Vec<VariableDescription> = vec![];
+    //         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
+    //     }
 
-//     #[test]
-//     fn generate_freq_data_incorrect_bounds() {
-//         let vars = vec![VariableDescription::new("V1", "uniform", 2., 1.)];
-//         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
-//     }
+    //     #[test]
+    //     fn generate_freq_data_incorrect_variable_type() {
+    //         let vars = vec![VariableDescription::new("V1", "incorrect", 1., 1.)];
+    //         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
+    //     }
 
-//     #[test]
-//     fn generate_freq_data_check_size() {
-//         let vars = vec![
-//             VariableDescription::new("V1", "uniform", 1., 2.),
-//             VariableDescription::new("V2", "normal", 1., 2.),
-//         ];
-//         let (buckets, freqs) = generate_freq_data("1", &vars, &100, &1.).unwrap();
-//         assert_eq!(buckets.len(), freqs.len());
-//     }
+    //     #[test]
+    //     fn generate_freq_data_incorrect_bounds() {
+    //         let vars = vec![VariableDescription::new("V1", "uniform", 2., 1.)];
+    //         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
+    //     }
 
-//     #[test]
-//     fn bucketize_series_single() {
-//         let data = vec![1.];
-//         assert!(bucketize_series(data, &0.1).is_none());
-//     }
+    //     #[test]
+    //     fn generate_freq_data_check_size() {
+    //         let vars = vec![
+    //             VariableDescription::new("V1", "uniform", 1., 2.),
+    //             VariableDescription::new("V2", "normal", 1., 2.),
+    //         ];
+    //         let (buckets, freqs) = generate_freq_data("1", &vars, &100, &1.).unwrap();
+    //         assert_eq!(buckets.len(), freqs.len());
+    //     }
 
-//     #[test]
-//     fn bucketize_series_bucket_size_smaller_than_1() {
-//         let data = vec![1., 3.];
-//         let (buckets, freqs) = bucketize_series(data, &0.5).unwrap();
-//         assert_eq!(buckets, vec![1., 1.5, 2., 2.5, 3.]);
-//         assert_eq!(freqs, vec![1, 0, 0, 0, 1]);
-//     }
+    //     #[test]
+    //     fn bucketize_series_single() {
+    //         let data = vec![1.];
+    //         assert!(bucketize_series(data, &0.1).is_none());
+    //     }
 
-//     #[test]
-//     fn bucketize_series_negative_values_and_small_bucket() {
-//         let data = vec![-1., 2.];
-//         let (buckets, freqs) = bucketize_series(data, &0.5).unwrap();
-//         assert_eq!(buckets, vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.]);
-//         assert_eq!(freqs, vec![1, 0, 0, 0, 0, 0, 1]);
-//     }
+    //     #[test]
+    //     fn bucketize_series_bucket_size_smaller_than_1() {
+    //         let data = vec![1., 3.];
+    //         let (buckets, freqs) = bucketize_series(data, &0.5).unwrap();
+    //         assert_eq!(buckets, vec![1., 1.5, 2., 2.5, 3.]);
+    //         assert_eq!(freqs, vec![1, 0, 0, 0, 1]);
+    //     }
 
-//     #[test]
-//     fn bucketize_series_larger_test() {
-//         let data = vec![0.33, 1.1, 1.6, 6.0, 5.5, 6.0, 4.3, 7.1, -1.1];
-//         let (buckets, freqs) = bucketize_series(data, &2.0).unwrap();
-//         assert_eq!(buckets, vec![-2., 0., 2., 4., 6.]);
-//         assert_eq!(freqs, vec![1, 3, 0, 2, 3]);
-//     }
+    //     #[test]
+    //     fn bucketize_series_negative_values_and_small_bucket() {
+    //         let data = vec![-1., 2.];
+    //         let (buckets, freqs) = bucketize_series(data, &0.5).unwrap();
+    //         assert_eq!(buckets, vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.]);
+    //         assert_eq!(freqs, vec![1, 0, 0, 0, 0, 0, 1]);
+    //     }
 
-//     #[test]
-//     fn bucketize_sub_unit() {
-//         let data = vec![0.83, 0.96, 1.15];
-//         let (buckets, freqs) = bucketize_series(data, &0.1).unwrap();
-//         assert_eq!(buckets, vec![0.8, 0.9, 1.0, 1.1]);
-//         assert_eq!(freqs, vec![1, 1, 0, 1]);
-//     }
+    //     #[test]
+    //     fn bucketize_series_larger_test() {
+    //         let data = vec![0.33, 1.1, 1.6, 6.0, 5.5, 6.0, 4.3, 7.1, -1.1];
+    //         let (buckets, freqs) = bucketize_series(data, &2.0).unwrap();
+    //         assert_eq!(buckets, vec![-2., 0., 2., 4., 6.]);
+    //         assert_eq!(freqs, vec![1, 3, 0, 2, 3]);
+    //     }
 
-//     //////////////////////////////////////////////////////////////////////
+    //     #[test]
+    //     fn bucketize_sub_unit() {
+    //         let data = vec![0.83, 0.96, 1.15];
+    //         let (buckets, freqs) = bucketize_series(data, &0.1).unwrap();
+    //         assert_eq!(buckets, vec![0.8, 0.9, 1.0, 1.1]);
+    //         assert_eq!(freqs, vec![1, 1, 0, 1]);
+    //     }
 
-//     #[test]
-//     fn ninety_ci_bucket_size_smaller_than_1() {
-//         let buckets = vec![1., 1.5, 2., 2.5, 3.];
-//         let freqs = vec![1, 0, 0, 0, 1];
-//         let (low, up) = ninety_ci(&buckets, &freqs, &2);
-//         assert_eq!(low, 1.);
-//         assert_eq!(up, 3.);
-//     }
+    //     //////////////////////////////////////////////////////////////////////
 
-//     #[test]
-//     fn ninety_ci_negative_values_and_small_bucket() {
-//         let buckets = vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.];
-//         let freqs = vec![1, 0, 0, 0, 0, 0, 1];
-//         let (low, up) = ninety_ci(&buckets, &freqs, &2);
-//         assert_eq!(low, -1.);
-//         assert_eq!(up, 2.);
-//     }
+    //     #[test]
+    //     fn ninety_ci_bucket_size_smaller_than_1() {
+    //         let buckets = vec![1., 1.5, 2., 2.5, 3.];
+    //         let freqs = vec![1, 0, 0, 0, 1];
+    //         let (low, up) = ninety_ci(&buckets, &freqs, &2);
+    //         assert_eq!(low, 1.);
+    //         assert_eq!(up, 3.);
+    //     }
 
-//     #[test]
-//     fn ninety_ci_larger_test() {
-//         let buckets = vec![-4., -2., 0., 2., 4., 6.];
-//         let freqs = vec![1, 1, 4, 40, 3, 1];
-//         let (low, up) = ninety_ci(&buckets, &freqs, &50);
-//         assert_eq!(low, -2.);
-//         assert_eq!(up, 4.);
-//     }
+    //     #[test]
+    //     fn ninety_ci_negative_values_and_small_bucket() {
+    //         let buckets = vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.];
+    //         let freqs = vec![1, 0, 0, 0, 0, 0, 1];
+    //         let (low, up) = ninety_ci(&buckets, &freqs, &2);
+    //         assert_eq!(low, -1.);
+    //         assert_eq!(up, 2.);
+    //     }
 
-//     ///////////////////////////////////////////////////////////////////////////////
+    //     #[test]
+    //     fn ninety_ci_larger_test() {
+    //         let buckets = vec![-4., -2., 0., 2., 4., 6.];
+    //         let freqs = vec![1, 1, 4, 40, 3, 1];
+    //         let (low, up) = ninety_ci(&buckets, &freqs, &50);
+    //         assert_eq!(low, -2.);
+    //         assert_eq!(up, 4.);
+    //     }
 
-//     #[test]
-//     fn integration_single_variable_normal() {
-//         let equation: &str = "VAR";
-//         let variables: Vec<VariableDescription> =
-//             vec![VariableDescription::new("VAR", "normal", 100., 200.)];
-//         const ITERATIONS: usize = 5000;
-//         const BUCKET_SIZE: f64 = 0.1;
+    //     ///////////////////////////////////////////////////////////////////////////////
 
-//         let (buckets, freqs) =
-//             generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-//         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
+    //     #[test]
+    //     fn integration_single_variable_normal() {
+    //         let equation: &str = "VAR";
+    //         let variables: Vec<VariableDescription> =
+    //             vec![VariableDescription::new("VAR", "normal", 100., 200.)];
+    //         const ITERATIONS: usize = 5000;
+    //         const BUCKET_SIZE: f64 = 0.1;
 
-//         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-//         assert_almost_eq!(low, 100., 1.);
-//         assert_almost_eq!(up, 200., 1.);
-//     }
+    //         let (buckets, freqs) =
+    //             generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+    //         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
 
-//     #[test]
-//     fn integration_single_variable_uniform() {
-//         // For a symetric random variable with a 90%CI of [1,2], the equation
-//         // "1 + variable" should obviously have a 90%CI of [2,3].
-//         let equation: &str = "1 + VAR";
-//         let variables: Vec<VariableDescription> =
-//             vec![VariableDescription::new("VAR", "uniform", 1., 2.)];
-//         const ITERATIONS: usize = 5000;
-//         const BUCKET_SIZE: f64 = 0.1;
+    //         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
+    //         assert_almost_eq!(low, 100., 1.);
+    //         assert_almost_eq!(up, 200., 1.);
+    //     }
 
-//         let (buckets, freqs) =
-//             generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-//         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
+    //     #[test]
+    //     fn integration_single_variable_uniform() {
+    //         // For a symetric random variable with a 90%CI of [1,2], the equation
+    //         // "1 + variable" should obviously have a 90%CI of [2,3].
+    //         let equation: &str = "1 + VAR";
+    //         let variables: Vec<VariableDescription> =
+    //             vec![VariableDescription::new("VAR", "uniform", 1., 2.)];
+    //         const ITERATIONS: usize = 5000;
+    //         const BUCKET_SIZE: f64 = 0.1;
 
-//         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-//         assert_almost_eq!(low, 2., 0.1);
-//         assert_almost_eq!(up, 3., 0.1);
-//     }
-// }
+    //         let (buckets, freqs) =
+    //             generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
+    //         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
+
+    //         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
+    //         assert_almost_eq!(low, 2., 0.1);
+    //         assert_almost_eq!(up, 3., 0.1);
+    //     }
+}
