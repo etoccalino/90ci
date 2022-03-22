@@ -25,20 +25,18 @@ fn main() {
     let vars: Vec<&str> = matches.values_of("vars").unwrap().collect();
     // println!("Vars: {:#?}", vars);
     // println!("-----------------");
-    let parsed_variables = parse_variables_descriptions(&vars).unwrap();
-    // println!("Parsed: {:#?}", parsed_variables);
-    let mut names: Vec<&str> = parsed_variables
-        .iter()
-        .map(|description| description.name)
-        .collect();
-    assert!(validate_variables(equation, &mut names));
+    // println!("Parsed: {:#?}", parsed_vars);
 
     // Build the frequency data and compute the 90% C.I.
     const ITERATIONS: usize = 5000;
     const BUCKET_SIZE: f64 = 0.1;
-    let (buckets, freqs) =
-        cli_90::generate_freq_data(equation, &parsed_variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-    let (lower, upper) = cli_90::ninety_ci(&buckets, &freqs, &ITERATIONS);
+    let (lower, upper) = cli_90::ci90(
+        equation,
+        &parse_variables_descriptions(&vars).unwrap(),
+        &ITERATIONS,
+        &BUCKET_SIZE,
+    )
+    .unwrap();
 
     println!("-----------------------------------------");
     println!("90% C.I.: [{:.2?} ; {:.2?}]", lower, upper);
@@ -54,6 +52,8 @@ fn main() {
 /// * `distro` is either "uniform" or "normal"
 /// * each of `lower` and `upper` parse to a f64
 /// * `lower < upper`
+///
+/// TODO: use a more robust parsing implementation (regex).
 fn parse_variables_descriptions<'a>(
     descriptions: &[&'a str],
 ) -> Result<Vec<cli_90::VariableDescription<'a>>> {
@@ -73,33 +73,4 @@ fn parse_variables_descriptions<'a>(
         ));
     }
     Ok(res)
-}
-
-/// Validate all variables in the equation have been provided.
-fn validate_variables(equation: &str, variables: &mut Vec<&str>) -> bool {
-    let extracted_names: Vec<&str> = cli_90::extract_variable_names(equation);
-    // println!(
-    //     "Validating correspondance between vars {:?}' and names '{:?}'",
-    //     variables, extracted_names
-    // );
-    if extracted_names.len() > variables.len() {
-        return false;
-    }
-    let mut found: bool;
-    for name in extracted_names.iter() {
-        // println!("Searching for {:?}...", name);
-        found = false;
-        for var in variables.iter() {
-            // println!("    Comparing to {:?}", var);
-            if name == var {
-                // println!("    match!");
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            return false;
-        }
-    }
-    true
 }

@@ -48,6 +48,7 @@ impl Distribution<f64> for Distro {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Use VariableDescription to define a variable
+#[derive(Debug)]
 pub struct VariableDescription<'a> {
     pub name: &'a str,
     pub shape: &'a str,
