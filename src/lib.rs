@@ -18,7 +18,7 @@ enum Distro {
 }
 
 impl Distro {
-    pub fn new(name: &str, lower_bound: f64, upper_bound: f64) -> Result<Self> {
+    fn new(name: &str, lower_bound: f64, upper_bound: f64) -> Result<Self> {
         match name {
             "range" => {
                 let l: i64 = (lower_bound).floor() as i64;
@@ -70,9 +70,9 @@ impl<'a> VariableDescription<'a> {
 
 /// A histogram represented as a list of "bucket (upper) bounds" and the number of samples that
 /// fell in it.
-type Histogram = Vec<(f64, usize)>;
+type Histogram = (Vec<f64>, Vec<usize>);
 
-pub struct Equation<'a, Status> {
+struct Equation<'a, Status> {
     status: Status,                   // Current status of the equation
     eq: &'a str,                      // String representation of the equation
     step: f64,                        // size of buckets
@@ -150,19 +150,27 @@ impl<'a> Equation<'a, UnderDefined> {
         Ok(rng.sample_iter(&dist).take(n).collect())
     }
 
-    /// Add a variable description to the equation. This operation may fully define the equation,
-    /// and so the return type will be either a `Equation<UnderDefined>`, which can continue to
-    /// receive variable descriptions, or a `Equation<Fullydefined>`, which does not support this
-    /// operation.
-    pub fn add_variable(mut self, var: &'a VariableDescription) -> Result<ValidEquation<'a>> {
+    /// Add a variable description to the equation.
+    /// Fails if the variable passed is not present in the equation.
+    fn add_variable(&mut self, var: &'a VariableDescription) -> Result<()> {
         if !self.var_names.contains(var.name) {
             bail!("Variable {} not mentioned in the equation", var.name);
         }
-
         self.vars.insert(
             var.name,
             Equation::sample_variable(var.shape, &var.lower, &var.upper, self.resolution)?,
         );
+        Ok(())
+    }
+
+    /// Add variables to the equation. This operation may fully define the equation,
+    /// and so the return type will be either a `Equation<UnderDefined>`, which can continue to
+    /// receive variable descriptions, or a `Equation<Fullydefined>`, which does not support this
+    /// operation.
+    fn add_variables(mut self, vars: &'a [VariableDescription]) -> Result<ValidEquation<'a>> {
+        for var in vars.iter() {
+            self.add_variable(var)?;
+        }
 
         if self.vars.len() < self.var_names.len() {
             Ok(ValidEquation::Partial(self))
@@ -185,7 +193,8 @@ impl<'a> Equation<'a, FullyDefined> {
         if series.len() < 2 {
             return None;
         }
-        let mut histogram: Histogram = Vec::new();
+        let mut buckets: Vec<f64> = Vec::new();
+        let mut counts: Vec<usize> = Vec::new();
 
         // Part one:
         //   Get the lowest and highest values in the vector.
@@ -196,9 +205,11 @@ impl<'a> Equation<'a, FullyDefined> {
         let highest = series.last()?;
         let mut bucket = lowest - lowest.rem_euclid(*bucket_size);
         while bucket <= *highest {
-            histogram.push((bucket, 0));
+            buckets.push(bucket);
+            counts.push(0);
             bucket += bucket_size;
         }
+        counts.resize(buckets.len(), 0);
 
         // Part two:
         //   For each value: compute which bucket it corresponds to using `bucket_size * (val % bucket_size)`
@@ -207,9 +218,9 @@ impl<'a> Equation<'a, FullyDefined> {
         let mut bucket_index: usize;
         for val in series {
             bucket_index = (val.div_euclid(*bucket_size) - buckets_offset) as usize;
-            histogram[bucket_index].1 += 1;
+            counts[bucket_index] += 1;
         }
-        Some(histogram)
+        Some((buckets, counts))
     }
 
     fn evaluate(self) -> Result<Equation<'a, Evaluated>> {
@@ -237,35 +248,63 @@ impl<'a> Equation<'a, FullyDefined> {
     }
 }
 
+/// The Equation<Evaluated> exposes methods to interpret and visualize the results.
+impl<'a> Equation<'a, Evaluated> {
+    /// Given the frequency data (buckets, frequencies), return a pair of buckets
+    /// which represent the range for the 90% confidence interval of the sample.
+    fn ninety_ci(&self) -> Result<(f64, f64)> {
+        // Accumulating the frequencies from first to last, the 90CI range is found as:
+        // - Lower bound is LAST bucket BEFORE accumulating >5%
+        // - Upper bound is FIRST bucket AFTER accumulating >95%
+
+        // Get a ref to each of the vectors (to avoid copies)
+        let hist = self
+            .hist
+            .as_ref()
+            .ok_or(anyhow!("Equation was not evaluated!?"))?;
+        let buckets = &hist.0;
+        let counts = &hist.1;
+
+        let mut lower: &f64 = buckets.first().unwrap();
+        let mut upper: &f64 = buckets.last().unwrap();
+        let mut acc = 0.;
+        for ix in 0..buckets.len() {
+            acc += counts[ix] as f32 / self.resolution as f32;
+
+            if acc <= 0.05 {
+                // Drag the lower bound up
+                lower = &buckets[ix];
+            }
+            if acc >= 0.95 {
+                // Drop the upper bound and stop accumulating
+                upper = &buckets[ix];
+                break;
+            }
+        }
+        Ok((*lower, *upper))
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
-/// Given the frequency data (buckets, frequencies), return a pair of buckets
-/// which represent the range for the 90% confidence interval of the sample.
-pub fn ninety_ci(
-    buckets: &[f64],
-    frequencies: &[usize],
-    n: &usize, // sum(frequencies)
-) -> (f64, f64) {
-    // Accumulating the frequencies from first to last, the 90CI range is found as:
-    // - Lower bound is LAST bucket BEFORE accumulating >5%
-    // - Upper bound is FIRST bucket AFTER accumulating >95%
-    let mut acc = 0.;
-    let mut lower: &f64 = buckets.first().unwrap();
-    let mut upper: &f64 = buckets.last().unwrap();
-    for (bucket, freq) in buckets.iter().zip(frequencies.iter()) {
-        acc += *freq as f32 / *n as f32;
-
-        if acc <= 0.05 {
-            // Drag the lower bound up
-            lower = bucket;
-        }
-        if acc >= 0.95 {
-            // Drop the upper bound and stop accumulating
-            upper = bucket;
-            break;
-        }
+// Entrypoint to the library.
+// Use the `VariableDescription` and the `ci90()` function.
+pub fn ci90(
+    eq: &str,
+    vars: &[VariableDescription],
+    iterations: &usize,
+    step: &f64,
+) -> Result<(f64, f64)> {
+    if vars.is_empty() {
+        bail!("No variables for the equation");
     }
-    (*lower, *upper)
+    let initial_model: Equation<UnderDefined> =
+        Equation::<UnderDefined>::new(eq, Some(*iterations), Some(*step)); // I have to explicitly annotate Equation::<UnderDefined> !?
+
+    match initial_model.add_variables(vars)? {
+        ValidEquation::Partial(_) => bail!("Variables missing"),
+        ValidEquation::Full(equation) => equation.evaluate()?.ninety_ci(),
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
