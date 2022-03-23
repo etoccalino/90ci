@@ -302,7 +302,7 @@ mod tests {
     use super::*;
     //     use statrs::assert_almost_eq;
 
-    // Tests for Equation<UnderDefined> ///////////////////////////////////
+    // Equation<UnderDefined> /////////////////////////////////////////////////
 
     #[test]
     fn extract_variable_names_simple_names() {
@@ -350,73 +350,151 @@ mod tests {
         assert_eq!(sample.len(), 100);
     }
 
-    ///////////////////////////////////////////////////////////////////////////////
+    #[test]
+    fn add_variable_not_in_equation() {
+        let mut eq = Equation::<UnderDefined>::new("V1", None, None);
+        let var = VariableDescription {
+            name: "V1",
+            shape: "incorrect",
+            lower: 1.,
+            upper: 2.,
+        };
+        assert!(eq.add_variable(&var).is_err());
+    }
 
-    //     #[test]
-    //     fn generate_freq_data_empty_variable_type() {
-    //         let vars: Vec<VariableDescription> = vec![];
-    //         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
-    //     }
+    #[test]
+    fn add_variable_adds_var() {
+        let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
+        eq.add_variable(
+            &(VariableDescription {
+                name: "A",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            }),
+        )
+        .unwrap();
+        assert_eq!(eq.vars.len(), 1);
+        assert!(eq.vars.contains_key("A"));
+    }
 
-    //     #[test]
-    //     fn generate_freq_data_incorrect_variable_type() {
-    //         let vars = vec![VariableDescription::new("V1", "incorrect", 1., 1.)];
-    //         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
-    //     }
+    #[test]
+    fn add_variable_incorrect_type() {
+        let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
+        assert!(eq
+            .add_variable(
+                &(VariableDescription {
+                    name: "A",
+                    shape: "incorrect",
+                    lower: 1.,
+                    upper: 2.,
+                }),
+            )
+            .is_err());
+    }
 
-    //     #[test]
-    //     fn generate_freq_data_incorrect_bounds() {
-    //         let vars = vec![VariableDescription::new("V1", "uniform", 2., 1.)];
-    //         assert!(generate_freq_data("1", &vars, &100, &1.).is_err());
-    //     }
+    #[test]
+    fn add_variable_incorrect_bounds() {
+        let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
+        assert!(eq
+            .add_variable(
+                &(VariableDescription {
+                    name: "A",
+                    shape: "incorrect",
+                    lower: 100.,
+                    upper: 2.,
+                }),
+            )
+            .is_err());
+    }
 
-    //     #[test]
-    //     fn generate_freq_data_check_size() {
-    //         let vars = vec![
-    //             VariableDescription::new("V1", "uniform", 1., 2.),
-    //             VariableDescription::new("V2", "normal", 1., 2.),
-    //         ];
-    //         let (buckets, freqs) = generate_freq_data("1", &vars, &100, &1.).unwrap();
-    //         assert_eq!(buckets.len(), freqs.len());
-    //     }
+    #[test]
+    fn add_variables_returns_partial() {
+        let eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let vars = vec![VariableDescription {
+            name: "A",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        if let ValidEquation::Full(..) = eq.add_variables(&vars).unwrap() {
+            panic!("wrong type")
+        }
+    }
 
-    //     #[test]
-    //     fn bucketize_series_single() {
-    //         let data = vec![1.];
-    //         assert!(bucketize_series(data, &0.1).is_none());
-    //     }
+    #[test]
+    fn add_variables_returns_full() {
+        let eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let vars = vec![
+            VariableDescription {
+                name: "A",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+            VariableDescription {
+                name: "B",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+        ];
+        if let ValidEquation::Partial(..) = eq.add_variables(&vars).unwrap() {
+            panic!("wrong type")
+        }
+    }
 
-    //     #[test]
-    //     fn bucketize_series_bucket_size_smaller_than_1() {
-    //         let data = vec![1., 3.];
-    //         let (buckets, freqs) = bucketize_series(data, &0.5).unwrap();
-    //         assert_eq!(buckets, vec![1., 1.5, 2., 2.5, 3.]);
-    //         assert_eq!(freqs, vec![1, 0, 0, 0, 1]);
-    //     }
+    // Equation<FullyDefined> /////////////////////////////////////////////////
 
-    //     #[test]
-    //     fn bucketize_series_negative_values_and_small_bucket() {
-    //         let data = vec![-1., 2.];
-    //         let (buckets, freqs) = bucketize_series(data, &0.5).unwrap();
-    //         assert_eq!(buckets, vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.]);
-    //         assert_eq!(freqs, vec![1, 0, 0, 0, 0, 0, 1]);
-    //     }
+    #[test]
+    fn compute_histogram_series_single() {
+        let mut data = vec![1.];
+        assert!(Equation::<FullyDefined>::compute_histogram(&mut data, &0.1).is_none());
+    }
 
-    //     #[test]
-    //     fn bucketize_series_larger_test() {
-    //         let data = vec![0.33, 1.1, 1.6, 6.0, 5.5, 6.0, 4.3, 7.1, -1.1];
-    //         let (buckets, freqs) = bucketize_series(data, &2.0).unwrap();
-    //         assert_eq!(buckets, vec![-2., 0., 2., 4., 6.]);
-    //         assert_eq!(freqs, vec![1, 3, 0, 2, 3]);
-    //     }
+    #[test]
+    fn compute_histogram_check_size() {
+        let mut data = vec![1., 2., 3., 4.];
+        let (buckets, counts) =
+            Equation::<FullyDefined>::compute_histogram(&mut data, &0.1).unwrap();
+        assert_eq!(buckets.len(), counts.len());
+    }
 
-    //     #[test]
-    //     fn bucketize_sub_unit() {
-    //         let data = vec![0.83, 0.96, 1.15];
-    //         let (buckets, freqs) = bucketize_series(data, &0.1).unwrap();
-    //         assert_eq!(buckets, vec![0.8, 0.9, 1.0, 1.1]);
-    //         assert_eq!(freqs, vec![1, 1, 0, 1]);
-    //     }
+    #[test]
+    fn compute_histogram_bucket_size_smaller_than_1() {
+        let mut data: Vec<f64> = vec![1., 3.];
+        let (buckets, freqs) =
+            Equation::<FullyDefined>::compute_histogram(&mut data, &0.5).unwrap();
+        assert_eq!(buckets, vec![1., 1.5, 2., 2.5, 3.]);
+        assert_eq!(freqs, vec![1, 0, 0, 0, 1]);
+    }
+
+    #[test]
+    fn compute_histogram_negative_values_and_small_bucket() {
+        let mut data: Vec<f64> = vec![-1., 2.];
+        let (buckets, freqs) =
+            Equation::<FullyDefined>::compute_histogram(&mut data, &0.5).unwrap();
+        assert_eq!(buckets, vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.]);
+        assert_eq!(freqs, vec![1, 0, 0, 0, 0, 0, 1]);
+    }
+
+    #[test]
+    fn compute_histogram_larger_test() {
+        let mut data: Vec<f64> = vec![0.33, 1.1, 1.6, 6.0, 5.5, 6.0, 4.3, 7.1, -1.1];
+        let (buckets, freqs) =
+            Equation::<FullyDefined>::compute_histogram(&mut data, &2.0).unwrap();
+        assert_eq!(buckets, vec![-2., 0., 2., 4., 6.]);
+        assert_eq!(freqs, vec![1, 3, 0, 2, 3]);
+    }
+
+    #[test]
+    fn compute_histogram_sub_unit() {
+        let mut data: Vec<f64> = vec![0.83, 0.96, 1.15];
+        let (buckets, freqs) =
+            Equation::<FullyDefined>::compute_histogram(&mut data, &0.1).unwrap();
+        assert_eq!(buckets, vec![0.8, 0.9, 1.0, 1.1]);
+        assert_eq!(freqs, vec![1, 1, 0, 1]);
+    }
 
     //     //////////////////////////////////////////////////////////////////////
 
