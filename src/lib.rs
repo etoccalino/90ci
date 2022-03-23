@@ -300,7 +300,6 @@ pub fn ci90(
 #[cfg(test)]
 mod tests {
     use super::*;
-    //     use statrs::assert_almost_eq;
 
     // Equation<UnderDefined> /////////////////////////////////////////////////
 
@@ -496,70 +495,59 @@ mod tests {
         assert_eq!(freqs, vec![1, 1, 0, 1]);
     }
 
-    //     //////////////////////////////////////////////////////////////////////
+    // Equation<Evaluated> ////////////////////////////////////////////////////
 
-    //     #[test]
-    //     fn ninety_ci_bucket_size_smaller_than_1() {
-    //         let buckets = vec![1., 1.5, 2., 2.5, 3.];
-    //         let freqs = vec![1, 0, 0, 0, 1];
-    //         let (low, up) = ninety_ci(&buckets, &freqs, &2);
-    //         assert_eq!(low, 1.);
-    //         assert_eq!(up, 3.);
-    //     }
+    #[test]
+    fn ninety_ci_bucket_size_smaller_than_1() {
+        let buckets = vec![1., 1.5, 2., 2.5, 3.];
+        let freqs = vec![1, 0, 0, 0, 1];
+        let eq = Equation::<Evaluated> {
+            _status: Evaluated,
+            eq: "A",
+            step: 0.5,
+            resolution: 2,
+            vars: HashMap::new(),
+            var_names: HashSet::new(),
+            hist: Some((buckets, freqs)),
+        };
+        let (low, up) = eq.ninety_ci().unwrap();
+        assert_eq!(low, 1.);
+        assert_eq!(up, 3.);
+    }
 
-    //     #[test]
-    //     fn ninety_ci_negative_values_and_small_bucket() {
-    //         let buckets = vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.];
-    //         let freqs = vec![1, 0, 0, 0, 0, 0, 1];
-    //         let (low, up) = ninety_ci(&buckets, &freqs, &2);
-    //         assert_eq!(low, -1.);
-    //         assert_eq!(up, 2.);
-    //     }
+    #[test]
+    fn ninety_ci_negative_values_and_small_bucket() {
+        let buckets = vec![-1., -0.5, 0., 0.5, 1., 1.5, 2.];
+        let freqs = vec![1, 0, 0, 0, 0, 0, 1];
+        let eq = Equation::<Evaluated> {
+            _status: Evaluated,
+            eq: "A",
+            step: 0.1,
+            resolution: 2,
+            vars: HashMap::new(),
+            var_names: HashSet::new(),
+            hist: Some((buckets, freqs)),
+        };
+        let (low, up) = eq.ninety_ci().unwrap();
+        assert_eq!(low, -1.);
+        assert_eq!(up, 2.);
+    }
 
-    //     #[test]
-    //     fn ninety_ci_larger_test() {
-    //         let buckets = vec![-4., -2., 0., 2., 4., 6.];
-    //         let freqs = vec![1, 1, 4, 40, 3, 1];
-    //         let (low, up) = ninety_ci(&buckets, &freqs, &50);
-    //         assert_eq!(low, -2.);
-    //         assert_eq!(up, 4.);
-    //     }
-
-    //     ///////////////////////////////////////////////////////////////////////////////
-
-    //     #[test]
-    //     fn integration_single_variable_normal() {
-    //         let equation: &str = "VAR";
-    //         let variables: Vec<VariableDescription> =
-    //             vec![VariableDescription::new("VAR", "normal", 100., 200.)];
-    //         const ITERATIONS: usize = 5000;
-    //         const BUCKET_SIZE: f64 = 0.1;
-
-    //         let (buckets, freqs) =
-    //             generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-    //         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
-
-    //         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-    //         assert_almost_eq!(low, 100., 1.);
-    //         assert_almost_eq!(up, 200., 1.);
-    //     }
-
-    //     #[test]
-    //     fn integration_single_variable_uniform() {
-    //         // For a symetric random variable with a 90%CI of [1,2], the equation
-    //         // "1 + variable" should obviously have a 90%CI of [2,3].
-    //         let equation: &str = "1 + VAR";
-    //         let variables: Vec<VariableDescription> =
-    //             vec![VariableDescription::new("VAR", "uniform", 1., 2.)];
-    //         const ITERATIONS: usize = 5000;
-    //         const BUCKET_SIZE: f64 = 0.1;
-
-    //         let (buckets, freqs) =
-    //             generate_freq_data(equation, &variables, &ITERATIONS, &BUCKET_SIZE).unwrap();
-    //         let (low, up) = ninety_ci(&buckets, &freqs, &ITERATIONS);
-
-    //         println!("DEBUG - test 90% CI: [{}, {}]", low, up);
-    //         assert_almost_eq!(low, 2., 0.1);
-    //         assert_almost_eq!(up, 3., 0.1);
-    //     }
+    #[test]
+    fn ninety_ci_larger_test() {
+        let buckets = vec![-4., -2., 0., 2., 4., 6.];
+        let freqs = vec![1, 1, 4, 40, 3, 1];
+        let eq = Equation::<Evaluated> {
+            _status: Evaluated,
+            eq: "A",
+            step: 0.1,
+            resolution: 50,
+            vars: HashMap::new(),
+            var_names: HashSet::new(),
+            hist: Some((buckets, freqs)),
+        };
+        let (low, up) = eq.ninety_ci().unwrap();
+        assert_eq!(low, -2.);
+        assert_eq!(up, 4.);
+    }
 }
