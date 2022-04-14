@@ -10,7 +10,7 @@ use regex::Regex;
 use statrs::distribution::{DiscreteUniform, Normal, Uniform};
 
 ///////////////////////////////////////////////////////////////////////////////
-/// A Distro can be sampled, and therefor used by the `rand` package.
+/// A Distro can be sampled, and therefore used by the `rand` package.
 enum Distro {
     N(Normal),
     U(Uniform),
@@ -120,9 +120,8 @@ impl<'a> Equation<'a, UnderDefined> {
         RE.find_iter(equation).map(|v| v.as_str()).collect()
     }
 
-    /// Return a series of samples of a random variable described by either "uniform" or "normal".
-    /// Fail if a variable has type other than "uniform", "range" or "normal", or a lower bound is
-    /// greater than an upper bound.
+    /// Return a series of samples of a random variable. Fail if a variable has type other than
+    /// "uniform", "range" or "normal", or a lower bound is greater than an upper bound.
     fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Result<Vec<f64>> {
         let dist: Distro = Distro::new(distribution, *lower, *upper)?;
         let rng = thread_rng();
@@ -237,12 +236,10 @@ impl<'a> Equation<'a, Evaluated> {
         // - Upper bound is FIRST bucket AFTER accumulating >95%
 
         // Get a ref to each of the vectors (to avoid copies)
-        let hist = self
+        let (buckets, counts): &(Vec<f64>, Vec<usize>) = self
             .hist
             .as_ref()
-            .ok_or(anyhow!("Equation was not evaluated!?"))?;
-        let buckets = &hist.0;
-        let counts = &hist.1;
+            .ok_or_else(|| anyhow!("Equation was not evaluated!?"))?;
 
         let mut lower: &f64 = buckets.first().unwrap();
         let mut upper: &f64 = buckets.last().unwrap();
