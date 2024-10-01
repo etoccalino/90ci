@@ -67,7 +67,7 @@ struct FullyDefined;
 struct Evaluated;
 
 enum ValidEquation<'a> {
-    Partial(Equation<'a, UnderDefined>),
+    Partial(()),
     Full(Equation<'a, FullyDefined>),
 }
 // struct Invalid { errors: &[Error] };
@@ -151,7 +151,7 @@ impl<'a> Equation<'a, UnderDefined> {
         }
 
         if self.vars.len() < self.var_names.len() {
-            Ok(ValidEquation::Partial(self))
+            Ok(ValidEquation::Partial(()))
         } else {
             Ok(ValidEquation::Full(Equation::with_status(
                 self,
