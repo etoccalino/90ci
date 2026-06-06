@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>90ci — DJ console look</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --amber:#ffb13c;
+    --teal:#37dac6;
+    --red:#ff5b5b;
+    --text:#cfd4dc;
+    --dim:#787e8a;
+    --metal-1:#34383f;
+    --metal-2:#23262c;
+    --panel:#1c1f24;
+    --slot:#0c0e11;
+    --bar:"Barlow Semi Condensed", sans-serif;
+    --mono:"IBM Plex Mono", monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ width:1280px; height:840px; overflow:hidden; color:var(--text); font-family:var(--bar);
+    background:linear-gradient(180deg,#26292f,#191b1f); }
+  .screws{ position:absolute; width:12px; height:12px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #5a5f68, #1a1c20 70%); box-shadow:inset 0 0 2px #000, 0 1px 1px rgba(0,0,0,0.5); }
+  .console{ position:relative; height:840px; padding:20px 26px; display:flex; flex-direction:column; gap:18px; }
+
+  /* transport */
+  .transport{ display:flex; align-items:center; gap:22px; padding:14px 22px; border-radius:10px;
+    background:linear-gradient(180deg,var(--metal-1),var(--metal-2)); box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 10px rgba(0,0,0,0.4); position:relative; }
+  .brand{ display:flex; flex-direction:column; line-height:0.9; }
+  .brand .b1{ font-weight:700; font-size:30px; letter-spacing:1px; }
+  .brand .b1 b{ color:var(--amber); }
+  .brand .b2{ font-size:11px; letter-spacing:3px; color:var(--dim); margin-top:3px; }
+  .lcd{ font-family:var(--mono); background:var(--slot); border-radius:7px; padding:9px 16px;
+    box-shadow:inset 0 2px 8px rgba(0,0,0,0.8); border:1px solid #000; }
+  .lcd.model{ flex:1; color:var(--teal); font-size:18px; letter-spacing:1px; text-shadow:0 0 8px rgba(55,218,198,0.4); }
+  .lcd.model .n{ color:var(--amber); } .lcd.model .o{ color:var(--dim); }
+  .meta{ display:flex; gap:10px; }
+  .gauge-sm{ text-align:center; }
+  .gauge-sm .k{ font-size:10px; letter-spacing:2px; color:var(--dim); }
+  .gauge-sm .v{ font-family:var(--mono); font-size:15px; color:var(--text); }
+  .play{ display:flex; align-items:center; gap:12px; }
+  .playbtn{ width:54px; height:54px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
+    background:radial-gradient(circle at 38% 30%, #5fe0cf, #18a08f); box-shadow:0 0 16px rgba(55,218,198,0.5), inset 0 -3px 6px rgba(0,0,0,0.35);
+    color:#06241f; }
+  .playbtn .tri{ width:0; height:0; border-left:18px solid #06241f; border-top:11px solid transparent; border-bottom:11px solid transparent; margin-left:4px; }
+  .rec{ display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:2px; color:var(--dim); }
+  .recdot{ width:11px; height:11px; border-radius:50%; background:var(--red); box-shadow:0 0 8px var(--red); animation:rb 1.4s infinite; }
+  @keyframes rb{ 50%{opacity:0.35;} }
+
+  .deck{ flex:1; display:grid; grid-template-columns:auto 1fr; gap:18px; min-height:0; }
+
+  /* channel rack */
+  .rack{ display:flex; gap:14px; padding:16px; border-radius:12px;
+    background:linear-gradient(180deg,#202329,#15171b); box-shadow:inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 14px rgba(0,0,0,0.4); }
+  .strip{ width:150px; background:linear-gradient(180deg,var(--panel),#16181c); border-radius:9px; padding:12px 12px 14px;
+    display:flex; flex-direction:column; align-items:center; gap:11px; border:1px solid #000;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04); }
+  .plate{ width:100%; text-align:center; font-weight:700; font-size:13px; letter-spacing:0.5px; padding:5px 4px;
+    background:var(--slot); border-radius:5px; color:var(--amber); font-family:var(--mono); box-shadow:inset 0 1px 4px rgba(0,0,0,0.8); }
+  .knob{ width:74px; height:74px; }
+  .knoblbl{ font-size:11px; letter-spacing:2px; color:var(--dim); margin-top:-4px; }
+  .knobval{ font-size:14px; font-weight:700; letter-spacing:1px; color:var(--teal); margin-top:-6px; text-transform:uppercase; }
+  .faders{ display:flex; gap:14px; margin-top:2px; }
+  .fcol{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .fader{ position:relative; width:14px; height:150px; border-radius:8px; background:var(--slot);
+    box-shadow:inset 0 0 6px rgba(0,0,0,0.9); border:1px solid #000; }
+  .fader::before{ content:""; position:absolute; left:50%; top:8px; bottom:8px; width:3px; transform:translateX(-50%);
+    background:repeating-linear-gradient(180deg,#3a3e46 0 1px, transparent 1px 13px); }
+  .cap{ position:absolute; left:50%; transform:translateX(-50%); width:30px; height:18px; border-radius:4px;
+    background:linear-gradient(180deg,#666c77,#2a2d33); box-shadow:0 2px 4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18); }
+  .cap::after{ content:""; position:absolute; left:4px; right:4px; top:50%; height:2px; transform:translateY(-50%); background:var(--amber); box-shadow:0 0 5px var(--amber); }
+  .flbl{ font-size:10px; letter-spacing:1px; color:var(--dim); }
+  .fval{ font-family:var(--mono); font-size:13px; color:var(--text); }
+  .addstrip{ width:64px; display:flex; align-items:center; justify-content:center; border-radius:9px; border:1.5px dashed #3a3e46;
+    color:var(--dim); font-size:12px; letter-spacing:2px; writing-mode:vertical-rl; }
+
+  /* spectrum */
+  .master{ display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .spectrum{ flex:1; border-radius:12px; padding:16px 18px; position:relative; min-height:0;
+    background:linear-gradient(180deg,#202329,#131519); box-shadow:inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 14px rgba(0,0,0,0.4); display:flex; flex-direction:column; }
+  .sp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .sp-head .t{ font-weight:700; font-size:15px; letter-spacing:2px; }
+  .sp-head .t span{ color:var(--amber); }
+  .sp-head .leg{ display:flex; gap:14px; font-size:11px; letter-spacing:1px; color:var(--dim); }
+  .sp-head .leg i{ display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:5px; }
+  .analyzer{ flex:1; width:100%; display:block; }
+  .sp-axis{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--dim); padding-top:6px; }
+
+  .masterlcd{ display:flex; gap:14px; }
+  .mlcd{ flex:1; background:var(--slot); border-radius:9px; padding:11px 16px; border:1px solid #000; box-shadow:inset 0 2px 8px rgba(0,0,0,0.8); }
+  .mlcd .k{ font-size:11px; letter-spacing:2px; color:var(--dim); }
+  .mlcd .v{ font-family:var(--mono); font-weight:600; font-size:22px; color:var(--amber); text-shadow:0 0 8px rgba(255,177,60,0.35); margin-top:3px; }
+  .mlcd.ci{ flex:1.4; } .mlcd.ci .v{ color:var(--teal); text-shadow:0 0 8px rgba(55,218,198,0.4); }
+</style>
+</head>
+<body>
+  <div class="console">
+    <!-- transport -->
+    <div class="transport">
+      <div class="brand"><span class="b1">90<b>ci</b></span><span class="b2">PROBABILITY CONSOLE</span></div>
+      <div class="lcd model"><span class="n">200</span> <span class="o">×</span> EXCHANGE_RATE <span class="o">+</span> BASE_FEE</div>
+      <div class="meta">
+        <div class="gauge-sm"><div class="k">SAMPLES</div><div class="v">10 000</div></div>
+        <div class="gauge-sm"><div class="k">SEED</div><div class="v">5F3A</div></div>
+      </div>
+      <div class="play">
+        <span class="rec"><span class="recdot"></span>LIVE</span>
+        <span class="playbtn"><span class="tri"></span></span>
+      </div>
+      <span class="screws" style="top:8px;left:8px"></span><span class="screws" style="top:8px;right:8px"></span>
+      <span class="screws" style="bottom:8px;left:8px"></span><span class="screws" style="bottom:8px;right:8px"></span>
+    </div>
+
+    <div class="deck">
+      <!-- channels -->
+      <div class="rack">
+        <div class="strip">
+          <div class="plate">EXCHANGE_RATE</div>
+          <svg class="knob" data-deg="-58"></svg>
+          <div class="knoblbl">DIST</div><div class="knobval">uniform</div>
+          <div class="faders">
+            <div class="fcol"><div class="fader"><div class="cap" style="bottom:18%"></div></div><div class="flbl">5TH</div><div class="fval">1000</div></div>
+            <div class="fcol"><div class="fader"><div class="cap" style="bottom:62%"></div></div><div class="flbl">95TH</div><div class="fval">1200</div></div>
+          </div>
+        </div>
+        <div class="strip">
+          <div class="plate">BASE_FEE</div>
+          <svg class="knob" data-deg="58"></svg>
+          <div class="knoblbl">DIST</div><div class="knobval">normal</div>
+          <div class="faders">
+            <div class="fcol"><div class="fader"><div class="cap" style="bottom:8%"></div></div><div class="flbl">5TH</div><div class="fval">0</div></div>
+            <div class="fcol"><div class="fader"><div class="cap" style="bottom:46%"></div></div><div class="flbl">95TH</div><div class="fval">50</div></div>
+          </div>
+        </div>
+        <div class="addstrip">+ ADD CHANNEL</div>
+      </div>
+
+      <!-- spectrum + master -->
+      <div class="master">
+        <div class="spectrum">
+          <div class="sp-head">
+            <div class="t">OUTPUT <span>SPECTRUM</span> · P(x)</div>
+            <div class="leg"><span><i style="background:var(--teal)"></i>distribution</span><span><i style="background:var(--amber)"></i>90% band</span></div>
+          </div>
+          <svg class="analyzer" id="analyzer" viewBox="0 0 720 300" preserveAspectRatio="none"></svg>
+          <div class="sp-axis"><span>195k</span><span>205k</span><span>220k</span><span>235k</span><span>245k</span></div>
+        </div>
+        <div class="masterlcd">
+          <div class="mlcd"><div class="k">MEDIAN</div><div class="v">220,300</div></div>
+          <div class="mlcd"><div class="k">MEAN</div><div class="v">220,050</div></div>
+          <div class="mlcd ci"><div class="k">90% CONFIDENCE INTERVAL</div><div class="v">203,400 – 237,100</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+function plateau(frac){ const X=195000+frac*50000, a=200000,b=240000,s=2600,
+  sig=t=>1/(1+Math.exp(-t/s)); return sig(X-a)-sig(X-b); }
+
+/* knobs */
+document.querySelectorAll('.knob').forEach(k=>{
+  const cx=37,cy=37, deg=+k.dataset.deg, rad=(deg-90)*Math.PI/180;
+  let ticks='';
+  for(let i=0;i<11;i++){ const a=(-135+i*27)*Math.PI/180; const x1=cx+Math.cos(a)*33, y1=cy+Math.sin(a)*33, x2=cx+Math.cos(a)*29, y2=cy+Math.sin(a)*29;
+    ticks+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#4a4f58" stroke-width="1.5"/>`; }
+  const px=cx+Math.cos(rad)*16, py=cy+Math.sin(rad)*16;
+  k.setAttribute('viewBox','0 0 74 74');
+  k.innerHTML=`${ticks}
+    <circle cx="${cx}" cy="${cy}" r="25" fill="#15171b" stroke="#000" stroke-width="1"/>
+    <circle cx="${cx}" cy="${cy}" r="22" fill="url(#kg)" stroke="#3a3e46" stroke-width="1"/>
+    <line x1="${cx}" y1="${cy}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#37dac6" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="3" fill="#0c0e11"/>
+    <defs><radialGradient id="kg" cx="40%" cy="32%"><stop offset="0" stop-color="#3b4049"/><stop offset="1" stop-color="#191b1f"/></radialGradient></defs>`;
+});
+
+/* spectrum analyzer bars */
+(function(){
+  const W=720,H=300, base=H-6, top=10, COLS=60, gap=2;
+  const bw=(W-(COLS-1)*gap)/COLS;
+  const f=v=>(v-195000)/50000; const p5=f(203400), p95=f(237100);
+  let bars='', wave=[];
+  for(let c=0;c<COLS;c++){ const frac=(c+0.5)/COLS; const h=plateau(frac); const bh=Math.max(2,h*(base-top));
+    const x=c*(bw+gap), y=base-bh; const inBand=frac>=p5&&frac<=p95;
+    const col=inBand?'url(#hot)':'url(#cold)'; const op=inBand?1:0.42;
+    bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="${col}" opacity="${op}"/>`;
+    if(inBand) bars+=`<rect x="${x.toFixed(1)}" y="${(y-3).toFixed(1)}" width="${bw.toFixed(1)}" height="2.4" fill="#fff" opacity="0.85"/>`;
+    wave.push([x+bw/2, y]);
+  }
+  const wline=wave.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  document.getElementById('analyzer').innerHTML=`
+    <defs>
+      <linearGradient id="cold" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#1c6e64"/><stop offset="1" stop-color="#37dac6"/></linearGradient>
+      <linearGradient id="hot" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#37dac6"/><stop offset="0.55" stop-color="#ffb13c"/><stop offset="1" stop-color="#ff5b5b"/></linearGradient>
+    </defs>
+    ${bars}
+    <path d="${wline}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.4"/>
+    <line x1="0" y1="${base}" x2="${W}" y2="${base}" stroke="#000" stroke-width="2"/>`;
+})();
+</script>
+</body>
+</html>

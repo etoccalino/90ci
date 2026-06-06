@@ -1,0 +1,13 @@
+- define architecture
+    - for the front-end, embedding the WASM module
+    - for the lib wrapper
+- create use-cases
+- incorporate error conditions and user-facing error reporting into the design
+- the hero of the web UI is the graph, so pay attention to its design and implementation
+- organize dev into a first milestone that tests the integration
+- reorganize code
+    - front-end app
+    - pre-existing 90ci Rust lib+bin to be shipped as a WASM module for the front-end
+- bring in skills and agents
+    - rebuild front-end agent to match new arch (still refs Trello)
+    - rebuild the reviewers w/specialization

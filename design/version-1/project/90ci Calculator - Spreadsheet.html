@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>90ci — Spreadsheet look</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --ink:#37352f;
+    --ink-2:#6b6862;
+    --ink-3:#9b988f;
+    --line:rgba(55,53,47,0.09);
+    --line-2:rgba(55,53,47,0.16);
+    --hover:#f6f5f3;
+    --bg:#ffffff;
+    --blue:#2a72d4;
+    --blue-bg:color-mix(in srgb, var(--blue) 12%, #ffffff);
+    --grn:#4f8a5b;
+    --grn-bg:#eaf3ec;
+    --amber:#c2842a;
+    --amber-bg:#f6efe2;
+    --sans:"Inter Tight",-apple-system,"Segoe UI",Helvetica,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ width:1280px; height:840px; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.5; overflow:hidden; -webkit-font-smoothing:antialiased; }
+
+  /* top chrome */
+  .topbar{ height:44px; display:flex; align-items:center; gap:10px; padding:0 18px; border-bottom:1px solid var(--line); color:var(--ink-2); font-size:13.5px; }
+  .crumb{ display:flex; align-items:center; gap:8px; }
+  .crumb .sep{ color:var(--ink-3); }
+  .crumb .here{ color:var(--ink); font-weight:500; }
+  .topbar .sq{ width:18px; height:18px; border-radius:5px; background:var(--blue-bg); color:var(--blue); display:grid; place-items:center; font-weight:700; font-size:12px; font-family:var(--mono); }
+  .topbar .right{ margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .tbtn{ font-size:13px; color:var(--ink-2); padding:5px 10px; border-radius:7px; }
+  .tbtn:hover{ background:var(--hover); }
+  .share{ background:var(--ink); color:#fff; }
+
+  .page{ height:calc(840px - 44px); display:grid; grid-template-columns:1.15fr 1fr; }
+  .col{ padding:28px 38px; overflow:hidden; }
+  .col.right{ border-left:1px solid var(--line); background:#fcfcfb; padding:28px 34px; }
+
+  .icon-ttl{ display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+  .pgicon{ width:44px; height:44px; border-radius:11px; background:linear-gradient(150deg,var(--blue-bg),#dfeafb); display:grid; place-items:center; font-family:var(--mono); font-weight:700; font-size:20px; color:var(--blue); }
+  h1{ font-size:30px; font-weight:700; letter-spacing:-0.5px; margin:0; white-space:nowrap; }
+  h1[contenteditable]{ outline:none; padding:2px 9px; margin:-2px -9px; border-radius:8px; cursor:text; transition:background .12s, box-shadow .12s; }
+  h1[contenteditable]:hover{ background:var(--hover); box-shadow:inset 0 0 0 1px var(--line-2); }
+  h1[contenteditable]:focus{ background:#fff; box-shadow:0 0 0 3px var(--blue-bg), inset 0 0 0 1px var(--blue); }
+  h1[contenteditable]:empty::before{ content:"Untitled model"; color:var(--ink-3); }
+  .edit-pencil{ font-family:var(--mono); font-size:15px; color:var(--ink-3); opacity:0; transition:opacity .12s, color .12s; cursor:text; padding:4px; }
+  .icon-ttl:hover .edit-pencil{ opacity:1; }
+  .edit-pencil:hover{ color:var(--blue); }
+  .subtitle{ color:var(--ink-3); font-size:14px; margin:2px 0 22px; }
+
+  .sec-lbl{ display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-3); font-weight:600; margin:0 0 10px; }
+  .sec-lbl .ico{ font-family:var(--mono); }
+
+  /* formula block */
+  .formula{ display:flex; align-items:stretch; gap:0; border:1px solid var(--line-2); border-radius:10px; overflow:hidden; box-shadow:0 1px 2px rgba(15,15,15,0.04); }
+  .formula .fx{ display:grid; place-items:center; width:42px; background:var(--hover); color:var(--ink-3); font-family:var(--mono); font-style:italic; font-size:16px; border-right:1px solid var(--line); }
+  .formula code{ flex:1; font-family:var(--mono); font-size:16px; padding:15px 16px; color:var(--ink); }
+  .formula code .num{ color:var(--amber); }
+  .formula code .var{ color:var(--blue); font-weight:500; }
+  .formula code .op{ color:var(--ink-3); }
+  .runbtn{ margin:8px; align-self:center; display:inline-flex; align-items:center; gap:7px; background:var(--blue); color:#fff; font-weight:600; font-size:14px; padding:9px 16px; border-radius:8px; box-shadow:0 1px 2px rgba(42,114,212,0.4); }
+  .runbtn .tri{ font-size:11px; }
+
+  /* database table */
+  .dbtable{ margin-top:10px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .dbrow{ display:grid; grid-template-columns:1.3fr 1fr 0.8fr 0.8fr 64px; align-items:center; border-bottom:1px solid var(--line); }
+  .dbrow:last-child{ border-bottom:0; }
+  .dbhead{ background:#fcfbfa; color:var(--ink-3); font-size:12.5px; }
+  .dbhead .cell{ padding:9px 13px; display:flex; align-items:center; gap:6px; }
+  .dbhead .ico{ font-family:var(--mono); font-size:12px; color:var(--ink-3); }
+  .cell{ padding:11px 13px; min-width:0; }
+  .dbrow:not(.dbhead):hover{ background:var(--hover); }
+  .title-cell{ display:flex; align-items:center; gap:9px; }
+  .title-cell .grip{ color:var(--ink-3); opacity:0; font-size:13px; cursor:grab; }
+  .dbrow:hover .grip{ opacity:1; }
+  .vname{ font-family:var(--mono); font-size:14px; font-weight:500; }
+  .tag{ display:inline-flex; align-items:center; gap:6px; font-size:13px; padding:3px 10px; border-radius:20px; font-weight:500; }
+  .tag.uniform{ background:var(--blue-bg); color:var(--blue); }
+  .tag.normal{ background:var(--grn-bg); color:var(--grn); }
+  .tag .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .numcell{ font-family:var(--mono); font-size:14px; color:var(--ink); }
+  .numcell .u{ color:var(--ink-3); font-size:12px; }
+  .spark{ width:54px; height:24px; }
+  .newrow{ padding:11px 13px; color:var(--ink-3); font-size:14px; display:flex; align-items:center; gap:8px; }
+  .newrow .p{ font-size:16px; }
+  .hint{ margin-top:9px; font-size:12.5px; color:var(--ink-3); display:flex; gap:7px; align-items:center; }
+  .kbd{ font-family:var(--mono); font-size:11px; border:1px solid var(--line-2); border-bottom-width:2px; border-radius:5px; padding:1px 6px; color:var(--ink-2); }
+
+  /* right column: result */
+  .resultcard{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px 20px 14px; box-shadow:0 2px 6px rgba(15,15,15,0.04); }
+  .rc-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .rc-head .t{ font-weight:600; font-size:15px; }
+  .rc-head .s{ font-size:12px; color:var(--ink-3); font-family:var(--mono); }
+  .chart{ width:100%; height:188px; display:block; }
+  .axis{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--ink-3); padding:2px 4px 0; }
+
+  /* chart wrap + CI axis */
+  .chartwrap{ position:relative; }
+  .ci-axis{ position:relative; height:20px; margin:1px 0 1px; }
+  .ci-mark{ position:absolute; transform:translateX(-50%); top:0; font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--blue); white-space:nowrap; }
+  .ci-mark::before{ content:"\25B2"; position:absolute; left:50%; top:-9px; transform:translateX(-50%); font-size:7px; color:var(--blue); }
+
+  /* CI hero */
+  .ci-hero{ margin-top:18px; border:1px solid var(--blue); border-radius:12px; padding:18px 20px 16px; background:linear-gradient(135deg,#fff,var(--blue-bg)); box-shadow:0 2px 10px rgba(42,114,212,0.12); }
+  .ci-hero .ci-lbl{ font-size:12px; text-transform:uppercase; letter-spacing:0.6px; color:var(--blue); font-weight:700; display:flex; align-items:center; gap:8px; }
+  .ci-hero .ci-lbl .ico{ font-family:var(--mono); font-size:13px; }
+  .ci-range{ font-family:var(--mono); font-weight:600; font-size:34px; letter-spacing:-1px; color:var(--ink); margin:10px 0 7px; display:flex; align-items:baseline; gap:14px; }
+  .ci-range .dash{ color:var(--ink-3); font-weight:400; }
+  .ci-sub{ font-size:13px; color:var(--ink-2); }
+  .ci-sub b{ font-family:var(--mono); color:var(--ink); font-weight:600; }
+  .legend{ margin-top:14px; display:flex; gap:16px; font-size:12px; color:var(--ink-2); }
+  .legend .it{ display:flex; align-items:center; gap:7px; }
+  .legend .sw{ width:13px; height:13px; border-radius:3px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="crumb">
+      <span class="sq">ƒ</span>
+      <span>Models</span><span class="sep">/</span><span class="here">Exchange exposure</span>
+    </div>
+    <div class="right">
+      <span class="tbtn">Shared</span>
+      <span class="tbtn">Comments</span>
+      <span class="tbtn share">Run all</span>
+    </div>
+  </div>
+
+  <div class="page">
+    <!-- LEFT: build -->
+    <div class="col">
+      <div class="icon-ttl">
+        <div class="pgicon">ƒ</div>
+        <h1 id="modelName" contenteditable="true" spellcheck="false">Exchange exposure</h1>
+        <span class="edit-pencil" id="editPencil" title="Rename model">✎</span>
+      </div>
+      <div class="subtitle">Estimate a result under uncertainty · 90% confidence interval</div>
+
+      <div class="sec-lbl"><span class="ico">∑</span> Model</div>
+      <div class="formula">
+        <div class="fx">ƒx</div>
+        <code><span class="num">200</span> <span class="op">*</span> <span class="var">EXCHANGE_RATE</span> <span class="op">+</span> <span class="var">BASE_FEE</span></code>
+        <span class="runbtn"><span class="tri">▶</span> Run</span>
+      </div>
+
+      <div class="sec-lbl" style="margin-top:26px;"><span class="ico">▦</span> Random variables</div>
+      <div class="dbtable">
+        <div class="dbrow dbhead">
+          <div class="cell"><span class="ico">A</span> Name</div>
+          <div class="cell"><span class="ico">◇</span> Distribution</div>
+          <div class="cell"><span class="ico">#</span> 5th</div>
+          <div class="cell"><span class="ico">#</span> 95th</div>
+          <div class="cell"><span class="ico">∿</span> Shape</div>
+        </div>
+        <div class="dbrow">
+          <div class="cell title-cell"><span class="grip">⠿</span><span class="vname">EXCHANGE_RATE</span></div>
+          <div class="cell"><span class="tag uniform"><span class="dot"></span>uniform</span></div>
+          <div class="cell numcell">1000</div>
+          <div class="cell numcell">1200</div>
+          <div class="cell"><svg class="spark" data-shape="uniform"></svg></div>
+        </div>
+        <div class="dbrow">
+          <div class="cell title-cell"><span class="grip">⠿</span><span class="vname">BASE_FEE</span></div>
+          <div class="cell"><span class="tag normal"><span class="dot"></span>normal</span></div>
+          <div class="cell numcell">0</div>
+          <div class="cell numcell">50</div>
+          <div class="cell"><svg class="spark" data-shape="normal"></svg></div>
+        </div>
+        <div class="newrow"><span class="p">+</span> New variable</div>
+      </div>
+      <div class="hint"><span class="kbd">5th / 95th</span> percentile bounds — the middle 90% of each variable lands between them.</div>
+    </div>
+
+    <!-- RIGHT: result -->
+    <div class="col right">
+      <div class="sec-lbl"><span class="ico">◉</span> Output distribution</div>
+      <div class="resultcard">
+        <div class="rc-head"><span class="t">Output value</span><span class="s" id="samplesOut">10,000 samples</span></div>
+        <div class="chartwrap">
+          <svg class="chart" id="bigchart" viewBox="0 0 520 188" preserveAspectRatio="none"></svg>
+          <div class="ci-axis">
+            <span class="ci-mark" id="ciLowMark">203.4k</span>
+            <span class="ci-mark" id="ciHighMark">237.1k</span>
+          </div>
+          <div class="axis"><span>195k</span><span>210k</span><span>225k</span><span>240k</span></div>
+        </div>
+        <div class="legend">
+          <div class="it"><span class="sw" style="background:color-mix(in srgb, var(--blue) 22%, #fff)"></span> 90% interval</div>
+          <div class="it"><span class="sw" style="background:color-mix(in srgb, var(--blue) 48%, #fff)"></span> distribution</div>
+        </div>
+      </div>
+
+      <div class="ci-hero">
+        <div class="ci-lbl"><span class="ico">[ ]</span> 90% Confidence interval</div>
+        <div class="ci-range"><span id="ciLowOut">203,400</span><span class="dash">–</span><span id="ciHighOut">237,100</span></div>
+        <div class="ci-sub">Width <b id="ciWidth">33,700</b> · the middle 90% of outcomes land in this range.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* smoothed boxcar: 200*uniform(1000,1200)=uniform(200k,240k), blurred by the normal */
+function plateau(x){ // x in 0..1 over domain 195k..245k
+  const X = 195000 + x*50000;
+  const a=200000, b=240000, s=2600;
+  const sig=t=>1/(1+Math.exp(-t/s));
+  return sig(X-a)-sig(X-b);
+}
+function sparkPath(shape,w,h){
+  const pts=[];
+  for(let i=0;i<=40;i++){ const t=i/40; let y;
+    if(shape==='uniform'){ y=(t>0.18&&t<0.82)?1:0.04; }
+    else { y=Math.exp(-Math.pow((t-0.5)/0.16,2)/2); }
+    pts.push([4+t*(w-8), h-3-y*(h-7)]);
+  }
+  return pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+}
+document.querySelectorAll('.spark').forEach(s=>{
+  const w=54,h=24, d=sparkPath(s.dataset.shape,w,h);
+  s.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  const col=s.dataset.shape==='uniform'?'#2a72d4':'#4f8a5b';
+  s.innerHTML=`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>`;
+});
+
+/* big area chart — re-runnable */
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const fmtK = n => { const k = n/1000; return (Math.abs(k % 1) < 0.05 ? k.toFixed(0) : k.toFixed(1)) + 'k'; };
+
+function renderChart(ciLow, ciHigh, accent){
+  const W=520,H=188, base=H-4, top=12, N=160;
+  let top_pts=[], areaAll='M 0 '+base+' ';
+  for(let i=0;i<=N;i++){ const t=i/N; const y=plateau(t); const px=t*W, py=base-y*(base-top);
+    top_pts.push([px,py]); areaAll+=`L ${px.toFixed(1)} ${py.toFixed(1)} `; }
+  areaAll+=`L ${W} ${base} Z`;
+  const line=top_pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const f=v=>Math.max(0,Math.min(1,(v-195000)/50000));
+  const p5=f(ciLow), p95=f(ciHigh);
+  let ci=`M ${(p5*W).toFixed(1)} ${base} `;
+  top_pts.filter(p=>p[0]>=p5*W&&p[0]<=p95*W).forEach(p=>ci+=`L ${p[0].toFixed(1)} ${p[1].toFixed(1)} `);
+  ci+=`L ${(p95*W).toFixed(1)} ${base} Z`;
+  document.getElementById('bigchart').innerHTML=`
+    <path d="${areaAll}" fill="#eef2f6"/>
+    <path d="${ci}" fill="${accent}" fill-opacity="0.18"/>
+    <line x1="${(p5*W).toFixed(1)}" y1="${top}" x2="${(p5*W).toFixed(1)}" y2="${base}" stroke="${accent}" stroke-width="1" stroke-dasharray="3 3"/>
+    <line x1="${(p95*W).toFixed(1)}" y1="${top}" x2="${(p95*W).toFixed(1)}" y2="${base}" stroke="${accent}" stroke-width="1" stroke-dasharray="3 3"/>
+    <path d="${line}" fill="none" stroke="${accent}" stroke-width="2" stroke-linejoin="round"/>`;
+  const lowM=document.getElementById('ciLowMark'), highM=document.getElementById('ciHighMark');
+  lowM.style.left=(p5*100).toFixed(2)+'%';  lowM.textContent=fmtK(ciLow);
+  highM.style.left=(p95*100).toFixed(2)+'%'; highM.textContent=fmtK(ciHigh);
+}
+
+window.applyTweaks = function(t){
+  const accent = t.accent || '#2a72d4';
+  document.documentElement.style.setProperty('--blue', accent);
+  const ciLow = Math.round(t.ciLowK*1000), ciHigh = Math.round(t.ciHighK*1000);
+  document.getElementById('ciLowOut').textContent  = fmt(ciLow);
+  document.getElementById('ciHighOut').textContent = fmt(ciHigh);
+  document.getElementById('ciWidth').textContent   = fmt(Math.max(0, ciHigh-ciLow));
+  document.getElementById('samplesOut').textContent = t.samples + ' samples';
+  renderChart(ciLow, ciHigh, accent);
+};
+renderChart(203400, 237100, '#2a72d4');
+
+/* editable model name — syncs the breadcrumb as you type */
+(function(){
+  const nameEl = document.getElementById('modelName');
+  const crumb  = document.querySelector('.crumb .here');
+  const pencil = document.getElementById('editPencil');
+  const caretToEnd = () => {
+    const r = document.createRange(); r.selectNodeContents(nameEl); r.collapse(false);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  };
+  nameEl.addEventListener('input', () => { crumb.textContent = nameEl.textContent.trim() || 'Untitled model'; });
+  nameEl.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); nameEl.blur(); } });
+  pencil.addEventListener('click', () => { nameEl.focus(); caretToEnd(); });
+})();
+</script>
+
+<div id="tweak-root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+  const { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakSelect, TweakColor } = window;
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "ciLowK": 203.4,
+    "ciHighK": 237.4,
+    "samples": "10,000",
+    "accent": "#2a72d4"
+  }/*EDITMODE-END*/;
+  function App(){
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    React.useEffect(()=>{ if(window.applyTweaks) window.applyTweaks(t); }, [t]);
+    return (
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="90% Confidence interval" />
+        <TweakSlider label="Lower bound" value={t.ciLowK} min={195} max={240} step={0.1} unit="k"
+                     onChange={v=>setTweak('ciLowK', v)} />
+        <TweakSlider label="Upper bound" value={t.ciHighK} min={200} max={245} step={0.1} unit="k"
+                     onChange={v=>setTweak('ciHighK', v)} />
+        <TweakSelect label="Samples" value={t.samples} options={['1,000','10,000','100,000']}
+                     onChange={v=>setTweak('samples', v)} />
+        <TweakSection label="Style" />
+        <TweakColor label="Accent" value={t.accent}
+                    options={['#2a72d4','#4f8a5b','#c2842a','#6d5ae0']}
+                    onChange={v=>setTweak('accent', v)} />
+      </TweaksPanel>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('tweak-root')).render(<App />);
+</script>
+</body>
+</html>

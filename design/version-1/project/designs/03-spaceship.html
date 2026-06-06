@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>90ci — Spaceship HUD look</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cyan:#3fe9ff;
+    --cyan-d:#0e8aa0;
+    --mag:#ff3da6;
+    --lime:#c2ff45;
+    --amber:#ffc34d;
+    --ink:#cfeefc;
+    --dim:#5e87a0;
+    --bg:#04070e;
+    --panel:#0a1320;
+    --orb:"Orbitron", sans-serif;
+    --chak:"Chakra Petch", sans-serif;
+    --cut:polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ width:1280px; height:840px; background:
+      radial-gradient(120% 90% at 80% -10%, rgba(63,233,255,0.08), transparent 60%),
+      radial-gradient(80% 80% at 0% 110%, rgba(255,61,166,0.07), transparent 55%),
+      var(--bg);
+    color:var(--ink); font-family:var(--chak); overflow:hidden; position:relative; }
+  body::before{ content:""; position:absolute; inset:0; pointer-events:none; z-index:40;
+    background:repeating-linear-gradient(0deg, transparent 0 3px, rgba(0,0,0,0.18) 3px 4px); opacity:0.5; }
+  body::after{ content:""; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(115deg, transparent 60%, rgba(63,233,255,0.04) 75%, transparent 90%); }
+
+  .hud{ filter:drop-shadow(0 0 7px rgba(63,233,255,0.35)); }
+  .hud > .inner, .inner{ clip-path:var(--cut); background:linear-gradient(160deg,#0c1726,#070d17); position:relative; }
+  .hud.mag{ filter:drop-shadow(0 0 8px rgba(255,61,166,0.4)); }
+  .frame{ clip-path:var(--cut); padding:1.5px; }
+  .frame.cy{ background:linear-gradient(160deg,var(--cyan),var(--cyan-d)); }
+  .frame.mg{ background:linear-gradient(160deg,var(--mag),#7a1450); }
+  .frame.lm{ background:linear-gradient(160deg,var(--lime),#5c7d12); }
+
+  .wrap{ position:absolute; inset:0; padding:22px 28px; display:flex; flex-direction:column; gap:16px; }
+
+  /* top status bar */
+  .statusbar{ display:flex; align-items:center; gap:18px; padding:11px 20px; }
+  .logo{ font-family:var(--orb); font-weight:800; font-size:22px; letter-spacing:3px; color:#fff;
+    text-shadow:0 0 12px var(--cyan); }
+  .logo b{ color:var(--cyan); }
+  .sysname{ font-family:var(--orb); font-size:12px; letter-spacing:4px; color:var(--dim); }
+  .statusbar .gap{ flex:1; }
+  .chip{ font-family:var(--orb); font-size:11px; letter-spacing:2px; padding:5px 12px; clip-path:var(--cut);
+    background:rgba(63,233,255,0.08); color:var(--cyan); border:1px solid rgba(63,233,255,0.3); }
+  .chip.ok{ color:var(--lime); border-color:rgba(194,255,69,0.35); background:rgba(194,255,69,0.07); }
+  .dotpulse{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--lime);
+    box-shadow:0 0 8px var(--lime); margin-right:6px; animation:p 1.4s infinite; }
+  @keyframes p{ 50%{opacity:0.3;} }
+
+  .body{ flex:1; display:grid; grid-template-columns:1fr 1.25fr; gap:18px; min-height:0; }
+  .colL{ display:flex; flex-direction:column; gap:16px; min-height:0; }
+  .colR{ display:flex; flex-direction:column; gap:16px; min-height:0; }
+
+  .ph{ display:flex; align-items:center; gap:10px; padding:10px 18px 8px; }
+  .ph .tick{ width:10px; height:10px; border-left:2px solid var(--cyan); border-top:2px solid var(--cyan); }
+  .ph h2{ font-family:var(--orb); font-size:13px; letter-spacing:3px; margin:0; color:var(--cyan); font-weight:600; }
+  .ph .id{ margin-left:auto; font-size:11px; letter-spacing:2px; color:var(--dim); font-family:var(--orb); }
+  .pbody{ padding:6px 18px 18px; }
+
+  .cmd{ font-family:var(--chak); font-size:19px; font-weight:600; letter-spacing:0.5px; color:#eaffff;
+    background:rgba(0,0,0,0.35); border-left:2px solid var(--cyan); padding:14px 16px; }
+  .cmd .n{ color:var(--amber); } .cmd .v{ color:var(--cyan); text-shadow:0 0 8px rgba(63,233,255,0.5); } .cmd .o{ color:var(--dim); }
+  .exec{ margin-top:14px; display:flex; align-items:center; gap:14px; }
+  .execbtn{ font-family:var(--orb); font-weight:700; font-size:15px; letter-spacing:3px; color:#06210a;
+    background:linear-gradient(160deg,var(--lime),#86c41e); clip-path:var(--cut); padding:12px 26px;
+    box-shadow:0 0 16px rgba(194,255,69,0.5); }
+  .execnote{ font-size:12px; letter-spacing:2px; color:var(--dim); }
+
+  /* variable modules */
+  .vmod{ display:flex; align-items:center; gap:14px; padding:12px 14px; margin-bottom:10px;
+    background:rgba(63,233,255,0.04); border:1px solid rgba(63,233,255,0.14); clip-path:var(--cut); }
+  .vmod:last-child{ margin-bottom:0; }
+  .gauge{ width:58px; height:42px; flex:0 0 auto; }
+  .vmeta{ flex:1; min-width:0; }
+  .vmeta .vn{ font-family:var(--orb); font-size:14px; letter-spacing:1px; color:#eaffff; }
+  .vmeta .vt{ font-size:12px; letter-spacing:2px; color:var(--mag); text-transform:uppercase; margin-top:2px; }
+  .vbounds{ text-align:right; font-family:var(--chak); }
+  .vbounds .b{ font-size:18px; font-weight:700; color:var(--cyan); }
+  .vbounds .lbl{ font-size:10px; letter-spacing:2px; color:var(--dim); }
+  .addmod{ text-align:center; font-family:var(--orb); font-size:12px; letter-spacing:2px; color:var(--cyan-d);
+    border:1px dashed rgba(63,233,255,0.25); padding:9px; clip-path:var(--cut); margin-top:10px; }
+
+  /* scope */
+  .scope{ width:100%; height:300px; display:block; }
+  .readouts{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:4px; }
+  .ro{ padding:12px 16px; background:rgba(0,0,0,0.3); border:1px solid rgba(63,233,255,0.14); clip-path:var(--cut); }
+  .ro.span2{ grid-column:1 / span 2; border-color:rgba(255,61,166,0.4); background:rgba(255,61,166,0.06); }
+  .ro .k{ font-family:var(--orb); font-size:11px; letter-spacing:3px; color:var(--dim); }
+  .ro .v{ font-family:var(--orb); font-weight:700; font-size:26px; color:var(--cyan); text-shadow:0 0 10px rgba(63,233,255,0.4); margin-top:4px; }
+  .ro.span2 .v{ color:var(--mag); text-shadow:0 0 12px rgba(255,61,166,0.5); }
+  .ro .u{ font-size:13px; color:var(--dim); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- status bar -->
+    <div class="hud"><div class="frame cy"><div class="inner"><div class="statusbar">
+      <span class="logo">90<b>ci</b></span>
+      <span class="sysname">PROBABILITY FLIGHT COMPUTER</span>
+      <span class="gap"></span>
+      <span class="chip">SEED · 0x5F3A</span>
+      <span class="chip">N · 10 000</span>
+      <span class="chip ok"><span class="dotpulse"></span>CONVERGED</span>
+    </div></div></div></div>
+
+    <div class="body">
+      <!-- LEFT -->
+      <div class="colL">
+        <div class="hud" style="flex:0 0 auto;"><div class="frame cy"><div class="inner">
+          <div class="ph"><span class="tick"></span><h2>MODEL VECTOR</h2><span class="id">EXP-01</span></div>
+          <div class="pbody">
+            <div class="cmd"><span class="v">200</span> <span class="o">×</span> <span class="n">EXCHANGE_RATE</span> <span class="o">+</span> <span class="n">BASE_FEE</span></div>
+            <div class="exec"><span class="execbtn">▸ EXECUTE</span><span class="execnote">Monte-Carlo · 10k draws</span></div>
+          </div>
+        </div></div></div>
+
+        <div class="hud" style="flex:1 1 auto;"><div class="frame cy"><div class="inner">
+          <div class="ph"><span class="tick"></span><h2>RANDOM VARIABLES</h2><span class="id">2 ACTIVE</span></div>
+          <div class="pbody">
+            <div class="vmod">
+              <svg class="gauge" data-shape="uniform"></svg>
+              <div class="vmeta"><div class="vn">EXCHANGE_RATE</div><div class="vt">uniform</div></div>
+              <div class="vbounds"><div class="b">1000 – 1200</div><div class="lbl">5TH / 95TH</div></div>
+            </div>
+            <div class="vmod">
+              <svg class="gauge" data-shape="normal"></svg>
+              <div class="vmeta"><div class="vn">BASE_FEE</div><div class="vt">normal</div></div>
+              <div class="vbounds"><div class="b">0 – 50</div><div class="lbl">5TH / 95TH</div></div>
+            </div>
+            <div class="addmod">+ COUPLE NEW VARIABLE</div>
+          </div>
+        </div></div></div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="colR">
+        <div class="hud mag" style="flex:1 1 auto;"><div class="frame mg"><div class="inner">
+          <div class="ph"><span class="tick" style="border-color:var(--mag)"></span><h2 style="color:var(--mag)">OUTPUT DISTRIBUTION</h2><span class="id">P(x) · SETTLEMENT</span></div>
+          <div class="pbody">
+            <svg class="scope" id="scope" viewBox="0 0 640 300"></svg>
+            <div class="readouts">
+              <div class="ro"><div class="k">MEDIAN</div><div class="v">220,300</div></div>
+              <div class="ro"><div class="k">MEAN</div><div class="v">220,050</div></div>
+              <div class="ro span2"><div class="k">90% CONFIDENCE INTERVAL</div><div class="v">203,400 <span class="u">—</span> 237,100</div></div>
+            </div>
+          </div>
+        </div></div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+function plateau(frac){ const X=195000+frac*50000, a=200000,b=240000,s=2600,
+  sig=t=>1/(1+Math.exp(-t/s)); return sig(X-a)-sig(X-b); }
+
+/* mini gauges */
+document.querySelectorAll('.gauge').forEach(g=>{
+  const w=58,h=42, pts=[];
+  for(let i=0;i<=36;i++){ const t=i/36; let y;
+    if(g.dataset.shape==='uniform'){ y=(t>0.16&&t<0.84)?1:0.05; }
+    else { y=Math.exp(-Math.pow((t-0.5)/0.16,2)/2); }
+    pts.push([4+t*(w-8), h-5-y*(h-12)]); }
+  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  g.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  g.innerHTML=`<path d="${d}" fill="none" stroke="#3fe9ff" stroke-width="1.6" filter="drop-shadow(0 0 3px #3fe9ff)"/>
+    <line x1="3" y1="${h-4}" x2="${w-3}" y2="${h-4}" stroke="#0e8aa0" stroke-width="1"/>`;
+});
+
+/* big scope */
+(function(){
+  const W=640,H=300, base=H-30, top=24, N=180;
+  const f=v=>(v-195000)/50000; const p5=f(203400), p95=f(237100);
+  let grid='';
+  for(let i=0;i<=8;i++){ const x=i/8*W; grid+=`<line x1="${x}" y1="${top-8}" x2="${x}" y2="${base}" stroke="rgba(63,233,255,0.08)" stroke-width="1"/>`; }
+  for(let i=0;i<=4;i++){ const y=top+i/4*(base-top); grid+=`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="rgba(63,233,255,0.08)" stroke-width="1"/>`; }
+  let pts=[];
+  for(let i=0;i<=N;i++){ const t=i/N; pts.push([t*W, base-plateau(t)*(base-top)]); }
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  let area=`M ${(p5*W).toFixed(1)} ${base} `;
+  pts.filter(p=>p[0]>=p5*W&&p[0]<=p95*W).forEach(p=>area+=`L ${p[0].toFixed(1)} ${p[1].toFixed(1)} `);
+  area+=`L ${(p95*W).toFixed(1)} ${base} Z`;
+  const cross=(x,c)=>`<line x1="${x}" y1="${top-8}" x2="${x}" y2="${base+8}" stroke="${c}" stroke-width="1.3" stroke-dasharray="5 4"/>
+     <polygon points="${x-5},${top-8} ${x+5},${top-8} ${x},${top-1}" fill="${c}"/>`;
+  document.getElementById('scope').innerHTML=`
+    <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255,61,166,0.45)"/><stop offset="1" stop-color="rgba(255,61,166,0.05)"/></linearGradient></defs>
+    ${grid}
+    <line x1="0" y1="${base}" x2="${W}" y2="${base}" stroke="#3fe9ff" stroke-width="1.4" opacity="0.5"/>
+    <path d="${area}" fill="url(#sg)"/>
+    <path d="${line}" fill="none" stroke="#3fe9ff" stroke-width="2.4" filter="drop-shadow(0 0 6px #3fe9ff)" stroke-linejoin="round"/>
+    ${cross(p5*W,'#ffc34d')}${cross(p95*W,'#ffc34d')}
+    <text x="${p5*W}" y="${base+22}" fill="#ffc34d" font-family="Orbitron" font-size="11" text-anchor="middle">5TH</text>
+    <text x="${p95*W}" y="${base+22}" fill="#ffc34d" font-family="Orbitron" font-size="11" text-anchor="middle">95TH</text>
+    <text x="6" y="${base+22}" fill="#5e87a0" font-family="Orbitron" font-size="10">195K</text>
+    <text x="${W-6}" y="${base+22}" fill="#5e87a0" font-family="Orbitron" font-size="10" text-anchor="end">245K</text>`;
+})();
+</script>
+</body>
+</html>
