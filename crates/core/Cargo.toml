@@ -1,0 +1,27 @@
+[package]
+name = "ninety_ci_core"
+version = "0.1.0"
+edition = "2018"
+# The TUI binary is opt-in via the `cli` feature; disable auto-discovery so the
+# bin is only built when that feature (and thus clap) is enabled.
+autobins = false
+
+# The clap-based TUI. `required-features` keeps it (and clap) out of the wasm build,
+# which depends on this crate with `default-features = false`.
+[[bin]]
+name = "ninety-ci"
+path = "src/bin/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["clap"]
+
+[dependencies]
+rand = "0.8"
+statrs = "0.15"
+regex = "1"
+lazy_static = "1"
+meval = "0.2"
+anyhow = "1.0"
+clap = { version = "2.33", optional = true }

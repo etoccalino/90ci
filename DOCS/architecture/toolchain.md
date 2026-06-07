@@ -4,7 +4,7 @@
 
 - **Rust** via rustup, plus the wasm target: `rustup target add wasm32-unknown-unknown`.
 - **wasm-pack**: `cargo install wasm-pack` (or via cargo-binstall).
-- **Node 20 + pnpm** — already present in the dev environment.
+- **Node + pnpm** — Node **≥ 22.13** if using pnpm 11 (it imports the `node:sqlite` builtin, absent before Node 22); pnpm ≤ 10 still runs on Node 20. This repo's environment uses Volta, so: `volta install node@22` (or pin pnpm with `volta install pnpm@10`).
 
 > Note: no Rust toolchain is currently installed in this environment (`cargo`/`rustup` are absent). Install the above before the first wasm build.
 

@@ -272,14 +272,26 @@ pub struct VariableDescription<'a> {
     pub upper: f64,
 }
 
-/// Entrypoint to the library.
-/// Use the `VariableDescription` and the `ci90()` function.
-pub fn ci90(
+/// The full result of a simulation: the 90% confidence interval plus the
+/// histogram of the output distribution that produced it.
+#[derive(Debug, Clone)]
+pub struct Simulation {
+    pub ci_low: f64,
+    pub ci_high: f64,
+    pub buckets: Vec<f64>, // bucket lower bounds
+    pub counts: Vec<usize>, // samples that fell in each bucket (same length as `buckets`)
+    pub samples: usize,    // total iterations run
+}
+
+/// Entrypoint to the library: run the Monte-Carlo simulation and return both the
+/// 90% confidence interval and the output histogram.
+/// Use the `VariableDescription` struct to describe each variable.
+pub fn simulate(
     eq: &str,
     vars: &[VariableDescription],
     iterations: &usize,
     step: &f64,
-) -> Result<(f64, f64)> {
+) -> Result<Simulation> {
     if vars.is_empty() {
         bail!("No variables for the equation");
     }
@@ -287,9 +299,34 @@ pub fn ci90(
         Equation::<UnderDefined>::new(eq, Some(*iterations), Some(*step)); // I have to explicitly annotate Equation::<UnderDefined> !?
 
     match initial_model.add_variables(vars)? {
-        ValidEquation::Full(equation) => equation.evaluate()?.ninety_ci(),
+        ValidEquation::Full(equation) => {
+            let evaluated = equation.evaluate()?;
+            let samples = evaluated.resolution;
+            let (ci_low, ci_high) = evaluated.ninety_ci()?;
+            let (buckets, counts) = evaluated
+                .hist
+                .ok_or_else(|| anyhow!("Equation was not evaluated!?"))?;
+            Ok(Simulation {
+                ci_low,
+                ci_high,
+                buckets,
+                counts,
+                samples,
+            })
+        }
         _ => bail!("Variables missing"),
     }
+}
+
+/// Convenience wrapper returning only the 90% confidence interval, as `(low, high)`.
+pub fn ci90(
+    eq: &str,
+    vars: &[VariableDescription],
+    iterations: &usize,
+    step: &f64,
+) -> Result<(f64, f64)> {
+    let s = simulate(eq, vars, iterations, step)?;
+    Ok((s.ci_low, s.ci_high))
 }
 
 ///////////////////////////////////////////////////////////////////////////////

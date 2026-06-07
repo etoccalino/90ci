@@ -1,4 +1,4 @@
-use cli_90::*;
+use ninety_ci_core::*;
 use statrs::assert_almost_eq;
 
 #[test]
@@ -9,7 +9,7 @@ fn integration_single_variable_normal() {
         lower: 100.,
         upper: 200.,
     }];
-    let (low, up) = cli_90::ci90("VAR", &variables, &5000, &0.1).unwrap();
+    let (low, up) = ninety_ci_core::ci90("VAR", &variables, &5000, &0.1).unwrap();
     assert_almost_eq!(low, 100., 3.);
     assert_almost_eq!(up, 200., 3.);
 }
@@ -24,7 +24,7 @@ fn integration_single_variable_uniform() {
         lower: 1.,
         upper: 2.,
     }];
-    let (low, up) = cli_90::ci90("1 + VAR", &variables, &5000, &0.1).unwrap();
+    let (low, up) = ninety_ci_core::ci90("1 + VAR", &variables, &5000, &0.1).unwrap();
     assert_almost_eq!(low, 2., 0.1);
     assert_almost_eq!(up, 3., 0.1);
 }

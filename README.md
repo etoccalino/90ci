@@ -10,7 +10,7 @@ The same Rust engine drives two presentations:
 ## Dependencies, per component
 
 ### Web app (front-end)
-- **Toolchain**: Node 20, pnpm
+- **Toolchain**: Node ≥ 22.13 (required by pnpm 11; older pnpm lines work on Node 20), pnpm
 - `react`, `react-dom`
 - `vite`, `@vitejs/plugin-react`
 - `typescript`
@@ -33,3 +33,32 @@ The same Rust engine drives two presentations:
 - `serde`, `serde-wasm-bindgen`
 - `console_error_panic_hook`
 - `getrandom = { version = "0.2", features = ["js"] }` — required for `rand` on `wasm32-unknown-unknown`; the `js` feature is scoped to this crate only, never to `core`
+
+## Running the tests
+
+Every Rust test in the workspace at once (from the repo root):
+
+```sh
+cargo test
+```
+
+Per component:
+
+### CLI / engine (`crates/core`)
+```sh
+cargo test -p ninety_ci_core
+```
+This is where the test coverage currently lives: unit tests in `src/lib.rs` plus integration tests in `tests/simple.rs`.
+
+### WASM crate (`crates/wasm`)
+```sh
+cargo test -p ninety-ci-wasm                       # native unit tests
+wasm-pack test --headless --firefox crates/wasm    # tests across the wasm boundary (needs a browser + driver)
+```
+No tests live here yet — the crate is a thin marshalling layer over `core`. The commands above are how to run them once added.
+
+### Web app (`web`)
+No test runner is wired up yet (planned: Vitest). Once added:
+```sh
+pnpm -C web test
+```

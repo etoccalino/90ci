@@ -26,7 +26,7 @@ fn main() {
 
     const ITERATIONS: usize = 5000;
     const BUCKET_SIZE: f64 = 0.1;
-    let (lower, upper) = cli_90::ci90(
+    let (lower, upper) = ninety_ci_core::ci90(
         equation,
         &parse_variables_descriptions(&vars).unwrap(),
         &ITERATIONS,
@@ -52,8 +52,8 @@ fn main() {
 /// TODO: use a more robust parsing implementation (regex).
 fn parse_variables_descriptions<'a>(
     descriptions: &[&'a str],
-) -> Result<Vec<cli_90::VariableDescription<'a>>> {
-    let mut res: Vec<cli_90::VariableDescription> = Vec::with_capacity(descriptions.len());
+) -> Result<Vec<ninety_ci_core::VariableDescription<'a>>> {
+    let mut res: Vec<ninety_ci_core::VariableDescription> = Vec::with_capacity(descriptions.len());
     let mut _lower: f64 = 0.;
     let mut _upper: f64 = 0.;
     let mut fields: Vec<&str>;
@@ -62,7 +62,7 @@ fn parse_variables_descriptions<'a>(
         if fields.len() != 4 {
             bail!("Incorrect number of fields in description: {}", description);
         }
-        res.push(cli_90::VariableDescription {
+        res.push(ninety_ci_core::VariableDescription {
             name: fields[0],
             shape: fields[1],
             lower: fields[2].parse().unwrap(),

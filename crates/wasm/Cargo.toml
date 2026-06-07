@@ -1,0 +1,19 @@
+[package]
+name = "ninety-ci-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# cdylib for the wasm artifact; rlib so the crate can also be unit-tested natively.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The engine, without its TUI/clap feature.
+ninety_ci_core = { path = "../core", default-features = false }
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"
+# Required for `rand`'s `getrandom` to work on wasm32-unknown-unknown (Web Crypto).
+# Scoped to this crate only; never enabled for the native/TUI build.
+getrandom = { version = "0.2", features = ["js"] }
