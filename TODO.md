@@ -1,6 +1,5 @@
-- create use-cases (worth it? or one-shot it?)
-    - if yes, bring back the `use-case-dev` skill (rename agents to match)
-- incorporate error conditions and user-facing error reporting into the design
+- fill in the `DOCS/PRD/v1-acceptance.md` template doc
+- incorporate error conditions and user-facing error reporting into the UI mock up? 
 - the hero of the web UI is the graph, so pay attention to its design and implementation
 - organize dev into a first milestone that tests the integration
 
