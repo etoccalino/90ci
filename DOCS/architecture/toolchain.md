@@ -58,7 +58,7 @@ The wasm rebuild is a **manual step** in v1 (not file-watched). A `cargo watch`-
 ## Tests
 
 - **Rust**: `cargo test -p ninety_ci_core` (the `core` crate; covers the existing unit + integration tests in `tests/simple.rs`).
-- **Front-end**: test setup (Vitest, etc.) is deferred — not part of v1 scaffolding.
+- **Front-end**: `pnpm -C web test` — runs Vitest (`vitest run`) across `web/src/**/*.{test,spec}.{ts,tsx}`. No test files exist yet; write them alongside components.
 
 ## CI sketch (documented, not wired)
 
