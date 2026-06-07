@@ -22,18 +22,19 @@ Running re-simulates and updates both the chart and the hero.
 ## In scope (v1)
 - Build a model: name, equation, and N random variables (uniform / normal / range).
 - Run the simulation client-side (WASM) and render the histogram + 90% CI.
-- Adjustable sample count (e.g. 1,000 / 10,000 / 100,000).
+- Fixed sample count: 5,000
 
 ## Out of scope (v1)
+- Adjustable sample count (e.g. 1,000 / 10,000 / 100,000).
 - The mock's **"Tweaks" panel** — it is a design-tool artifact for exploring visuals, not a product feature.
 - Persistence, saving, sharing, and the "Shared" / "Comments" / "Run all" top-bar actions.
 - Managing multiple models / a model library.
 - Auth, accounts, any server-side anything.
 
-## Open item to confirm (does not block v1)
+## About variable bounds
 
 The mock labels the variable bounds "5th / 95th percentile". The engine (`src/lib.rs`, `Distro::new`) interprets `lower`/`upper` differently per shape:
 - **normal**: `mean = (upper + lower) / 2`, `sd = (upper - lower) / 3.29` — so `lower`/`upper` genuinely are the ~5th/95th percentiles (3.29 ≈ the 90% z-span).
 - **uniform** and **range**: `lower`/`upper` are the **full min/max**, not percentiles — the middle 90% of a uniform over `[1000, 1200]` is `[1010, 1190]`, not `[1000, 1200]`.
 
-So the "5th / 95th" label is accurate for normal but loose for uniform/range. Product to decide whether to (a) keep the current engine semantics and adjust the column labels/tooltip, or (b) reinterpret uniform/range bounds as percentiles in the engine. Flagged for a decision; the engine is unchanged in v1 unless (b) is chosen.
+So the "5th / 95th" label is accurate for normal but loose for uniform/range. For v1 we keep the current engine semantics and allow the labels/tooltips to be "loose" is meaning.
