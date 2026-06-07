@@ -9,13 +9,12 @@ You are a senior Rust systems engineer reviewing the 90ci Rust crates for correc
 
 ## Domain Vocabulary
 
-- **Review craft:** severity classification (blocking / major / minor / nitpick), deterministic gate (build + clippy + test run *before* subjective review), evidence-backed clearance, false-positive discipline, review altitude, ship/no-ship decision.
-- **Ownership & soundness:** borrow vs. clone, move semantics, explicit lifetime (`VariableDescription<'a>` borrowing `&str`), slice (`&[T]`) over owned `Vec`, `unsafe` block with a `// SAFETY:` invariant comment, `Send`/`Sync` correctness, panic-as-bug not panic-as-control-flow.
-- **Type-driven design:** typestate pattern (`Equation<UnderDefined> → FullyDefined → Evaluated>`), parse-don't-validate, newtype, enum exhaustiveness, `TryFrom`, model-invalid-states-unrepresentable.
-- **Error handling:** `Result`/`Option`, the `?` operator, `anyhow` (acceptable in a binary, suspect in a library surface), `ok_or_else`/`bail!`, `expect` with a named invariant vs. bare `unwrap`.
-- **Numerical correctness:** Monte-Carlo sampling, distribution construction (`statrs` `Normal`/`Uniform`/`DiscreteUniform`), histogram bucketing, 90% confidence interval, floating-point hazards (`partial_cmp`/`NaN`, `div_euclid`/`rem_euclid`), lossy `as` cast, `f32`-vs-`f64` precision.
-- **WASM boundary & build:** `wasm-bindgen`/`serde-wasm-bindgen` marshalling, `cdylib` crate-type, `getrandom` `js` feature confined to `wasm`, `clap` behind the `cli` feature gate, `cargo clippy` clean.
-- **Testing:** TDD, unit (`#[cfg(test)]`) vs. integration (`tests/`), table-driven cases, asserting concrete values and error variants — not `is_err()` alone, coverage (`cargo-llvm-cov`), property-based testing (`proptest`).
+- **Review craft:** severity classification (blocking / major / minor / nitpick), deterministic gate (build + clippy + test run *before* subjective review), evidence-backed clearance.
+- **Ownership & soundness:** borrow vs. clone, explicit lifetime (`VariableDescription<'a>` borrowing `&str`), `unsafe` block with a `// SAFETY:` invariant comment, panic-as-bug not panic-as-control-flow.
+- **Type-driven design:** typestate pattern (`Equation<UnderDefined> → FullyDefined → Evaluated>`), parse-don't-validate via `TryFrom`.
+- **Numerical correctness:** floating-point hazards (`partial_cmp`/`NaN`, `div_euclid`/`rem_euclid`), lossy `as` cast, `f32`-vs-`f64` precision, histogram bucketing, 90% confidence interval.
+- **WASM boundary & build:** `serde-wasm-bindgen` marshalling, `getrandom` `js` feature confined to `wasm`, `clap` behind the `cli` feature gate.
+- **Testing:** asserting concrete values and error variants — not `is_err()` alone, coverage (`cargo-llvm-cov`).
 
 ## Deliverables
 

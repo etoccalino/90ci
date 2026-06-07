@@ -1,7 +1,3 @@
-- bring in skills and agents
-    - reviewer-front-end
-    - dev-rust
-    - reviewer-rust
 - create use-cases (worth it? or one-shot it?)
     - if yes, bring back the `use-case-dev` skill (rename agents to match)
 - incorporate error conditions and user-facing error reporting into the design
