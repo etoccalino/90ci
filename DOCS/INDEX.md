@@ -2,7 +2,7 @@
 
 ## PRD
 - [PRD/90ci-web-calculator.md](PRD/90ci-web-calculator.md) — Product requirements: zero-backend web calculator, UX spec, v1 scope, variable-bounds semantics.
-- [PRD/v1-acceptance.md](PRD/v1-acceptance.md) — TEMPLATE (fill-in): thin use-cases, input validation, error/edge-case matrix, distribution-label decision, graph spec, test commitment, v1 Definition of Done.
+- [PRD/v1-acceptance.md](PRD/v1-acceptance.md) — v1 acceptance criteria: scope check, use-cases (UC-1 happy path, UC-2 undeclared-variable error; UC-3 TODO), input validation, error/edge-case matrix (E-01–E-12), distribution-label decision, graph spec, non-functional bars, test commitment, Definition of Done. Mostly filled; a few recommended DECISIONs await confirmation and the E-07 panic is the top correctness gate.
 
 ## Architecture
 - [architecture/overview.md](architecture/overview.md) — Workspace layout, crate split rationale, migration map from the old flat repo, `.gitignore` additions.
