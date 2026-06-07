@@ -1,3 +1,4 @@
 1. NEVER introduce unnecessary line-breaks mid-line when writing documentation BECAUSE it breaks the reading flow when user uses a paginator.
 2. ALWAYS ignore `TODO.md` at the top level of the repo BECAUSE the file contains actions solely for the user.
 3. ALWAYS run the test of component being worked on before the work is considered "done" BECAUSE the tests provide early feedback and allow to catch errors early.
+4. ALWAYS fetch web page content with `curl -sL <raw-url>` via Bash rather than `WebFetch` for verbatim raw content BECAUSE WebFetch's summarizer model refuses to reproduce "system-prompt-like" content verbatim and returns a refusal instead of the file.

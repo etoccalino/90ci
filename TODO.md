@@ -1,7 +1,9 @@
 - bring in skills and agents
-    - rebuild front-end agent to match new arch (still refs Trello)
-    - rebuild the reviewers w/specialization
-- create use-cases
+    - reviewer-front-end
+    - dev-rust
+    - reviewer-rust
+- create use-cases (worth it? or one-shot it?)
+    - if yes, bring back the `use-case-dev` skill (rename agents to match)
 - incorporate error conditions and user-facing error reporting into the design
 - the hero of the web UI is the graph, so pay attention to its design and implementation
 - organize dev into a first milestone that tests the integration
