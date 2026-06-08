@@ -45,7 +45,11 @@ Hooks & WASM glue (`web/src/`):
 Styles:
 - `web/src/styles/app.css` — global CSS: design tokens (color, type, spacing) plus component styles.
 
-Tests: `vitest` is configured (`web/package.json` `test` script), but no test files exist yet — the runner is scaffolded ahead of the suite.
+Tests (`web/`):
+- `web/vite.config.ts` — Vitest config (`defineConfig` from `vitest/config`): `test.environment = 'jsdom'`, `globals: true`, `setupFiles: ['./src/setupTests.ts']`.
+- `web/src/setupTests.ts` — imports `@testing-library/jest-dom/vitest` to register DOM matchers (and their Vitest `Assertion` types).
+- `web/src/App.test.tsx` — smoke test: mocks the WASM glue module, renders `<App>`, asserts the prefilled model name and an enabled Run button. Run with `pnpm -C web test`.
+- Dev deps: `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`.
 
 ## Designs (`design/`)
 
@@ -70,6 +74,8 @@ Static mockups and throwaway prototypes that informed the UI. Not wired into the
 A thin `cdylib` that exposes `ninety_ci_core` to JavaScript via `wasm-bindgen`. This is the only FFI boundary.
 
 - `crates/wasm/src/lib.rs` — the FFI layer. `VarInput` (owned strings deserialized from JS) and `SimOutput` (serialized back to JS); `init()` installs `console_error_panic_hook` so Rust panics surface in the browser console; `simulate(equation, vars, iterations, step)` borrows `VariableDescription`s from the inputs, calls the core engine, and returns `{ ci_low, ci_high, buckets, counts, samples }`.
+- `crates/wasm/tests/boundary.rs` — WASM boundary harness (`wasm-bindgen-test`, `run_in_browser`): one round-trip test that calls `simulate` over the built glue and asserts a plausible `SimOutput`. Run with `wasm-pack test --headless --chrome crates/wasm`.
+- `crates/wasm/webdriver.json` — ChromeDriver capabilities (`--no-sandbox`, `--headless`, `--disable-gpu`, `--disable-dev-shm-usage`) so the boundary test launches Chrome in headless/sandboxed environments.
 
 ## Tools & scripts
 
