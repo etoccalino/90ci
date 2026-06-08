@@ -5,7 +5,7 @@
 - **Rust** via rustup, plus the wasm target: `rustup target add wasm32-unknown-unknown`.
 - **wasm-pack**: `cargo install wasm-pack` (or via cargo-binstall).
 - **Node + pnpm** — Node **≥ 22.13** (pnpm 11 imports `node:sqlite`, absent before Node 22). Install via Volta: `volta install node@22`.
-- **Chromium + chromedriver** — required for `wasm-pack test --headless --chrome`. On Arch Linux: `sudo pacman -S chromium` (installs both `/usr/bin/chromium` and `/usr/bin/chromedriver`).
+- **Chromium + chromedriver** — required for `wasm-pack test --headless --chrome`. On Arch Linux: `sudo pacman -S chromium` (installs both `/usr/bin/chromium` and `/usr/bin/chromedriver`). wasm-pack 0.15 ignores `$CHROMEDRIVER` and uses its own cached driver; keep the cached driver's major version in sync with the installed Chrome — a mismatch SIGKILLs the test run.
 
 > Note: no Rust toolchain is currently installed in this environment (`cargo`/`rustup` are absent). Install the above before the first wasm build.
 
@@ -58,7 +58,8 @@ The wasm rebuild is a **manual step** in v1 (not file-watched). A `cargo watch`-
 ## Tests
 
 - **Rust**: `cargo test -p ninety_ci_core` (the `core` crate; covers the existing unit + integration tests in `tests/simple.rs`).
-- **Front-end**: `pnpm -C web test` — runs Vitest (`vitest run`) across `web/src/**/*.{test,spec}.{ts,tsx}`. No test files exist yet; write them alongside components.
+- **WASM boundary**: `wasm-pack test --headless --chrome crates/wasm` — runs `crates/wasm/tests/boundary.rs` in a true headless browser (`wasm_bindgen_test_configure!(run_in_browser)`; required because `getrandom` uses the JS backend). Chrome flags for sandboxed/CI environments live in `crates/wasm/webdriver.json`.
+- **Front-end**: `pnpm -C web test` — runs Vitest (`vitest run`) across `web/src/**/*.{test,spec}.{ts,tsx}`.
 
 ## CI sketch (documented, not wired)
 

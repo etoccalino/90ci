@@ -17,3 +17,6 @@ console_error_panic_hook = "0.1"
 # Required for `rand`'s `getrandom` to work on wasm32-unknown-unknown (Web Crypto).
 # Scoped to this crate only; never enabled for the native/TUI build.
 getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.72"
