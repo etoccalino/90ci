@@ -1,6 +1,7 @@
 ---
 name: reviewer-rust
 description: Review changes to the 90ci Rust crates — the `ninety_ci_core` Monte-Carlo library and its `wasm` cdylib wrapper — flagging correctness, numerical, API-surface, and test-coverage issues. Use when the user asks to "review the Rust code", "review the core crate", "review this Rust change", or "check the simulation engine".
+model: sonnet
 ---
 
 ## Role Identity

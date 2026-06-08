@@ -1,6 +1,7 @@
 ---
 name: dev-rust
 description: Develop and maintain the 90ci Rust crates — the `ninety_ci_core` Monte-Carlo library and its `wasm` cdylib wrapper — as idiomatic, test-driven Rust across the JS↔WASM boundary. Use when the user asks to "work on the core crate", "change the simulation engine", "wrap Rust for WASM", "add a Rust test", or "fix the Rust code".
+model: sonnet
 ---
 
 ## Role Identity

@@ -1,6 +1,7 @@
 ---
 name: reviewer-front-end
 description: Review front-end code changes and flag quality, correctness, UX, and test-coverage issues in the 90ci React + TypeScript web UI and its Rust/WASM boundary. Use when the user asks to "review the front-end", "review the UI", "review this component", or "check the web app code".
+model: sonnet
 ---
 
 ## Role Identity

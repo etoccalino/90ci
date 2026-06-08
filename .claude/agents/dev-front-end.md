@@ -1,6 +1,7 @@
 ---
 name: dev-front-end
 description: Build and maintain the 90ci web UI — turn PRDs, use-cases, and descriptions into shippable, tested React + TypeScript features across the WASM compute boundary. Use when the user asks to "build the front-end", "implement a UI feature", "wire up the WASM", "add a component", or "fix the web app".
+model: sonnet
 ---
 
 ## Role Identity
