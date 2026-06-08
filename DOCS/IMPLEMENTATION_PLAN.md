@@ -15,7 +15,7 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 
 ---
 
-## Stage 0 — Feedback loop bootstrap
+## Stage 0 — Feedback loop bootstrap - DONE
 
 **Goal:** every test runner is runnable and green-on-trivial, so all later work is test-first.
 
