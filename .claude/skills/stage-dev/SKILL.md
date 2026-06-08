@@ -46,7 +46,7 @@ Use a sub-agent to verify the repo is in a "ready" state. The subagent's tasks a
 - Verify if `docker` is running (it will be needed for the E2E tests).
   - IMPORTANT: If subagent finds out that docker is NOT running, stop and request user intervention.
 - Validate that there's nothing staged and no lingering changes in the working tree.
-- Switch to the main branch, `develop`, and create a new feature branch with the name schema `stage/XXX` where "XXX" is the stage number (example "1").
+- Switch to the main branch, `master`, and create a new feature branch with the name schema `stage/XXX` where "XXX" is the stage number (example "1").
 - Run the entire test suite (including E2E tests) to verify it's passing.
   - IMPORTANT: If subagent finds broken tests, stop and request user intervention.
 
