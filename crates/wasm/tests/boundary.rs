@@ -28,6 +28,36 @@ fn make_vars(vars: &[(&str, &str, f64, f64)]) -> JsValue {
     serde_wasm_bindgen::to_value(&objs).expect("serialising test vars must not fail")
 }
 
+/// Divide-by-zero model: `X / Y` where Y is always 0 must return `Err`,
+/// never trap the wasm module. The error must be a non-empty string that
+/// does not contain "unreachable" (the wasm-trap signature).
+#[wasm_bindgen_test]
+fn simulate_div_zero_returns_err_not_trap() {
+    use ninety_ci_wasm::simulate;
+
+    // Y is a "range" variable with lower=upper=0, so every sample is exactly 0.
+    // X / Y produces inf for every sample; the engine must return Err.
+    let vars = make_vars(&[
+        ("X", "normal", 1.0, 10.0),
+        ("Y", "range", 0.0, 0.0),
+    ]);
+
+    let result = simulate("X / Y", vars, 1_000, 0.1);
+
+    let err_val = result.expect_err("expected Err for divide-by-zero model");
+
+    // The error value must be a string (not an opaque JS exception).
+    let err_str = err_val
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(!err_str.is_empty(), "error string must not be empty");
+    assert!(
+        !err_str.contains("unreachable"),
+        "error must not be a wasm trap, got: {err_str}"
+    );
+}
+
 /// Happy-path round-trip: `simulate` with a simple two-variable normal model
 /// must return `Ok` and a structurally plausible `SimOutput`.
 #[wasm_bindgen_test]

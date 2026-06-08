@@ -212,14 +212,22 @@ impl<'a> Equation<'a, FullyDefined> {
                 ctx.var(String::from(*var_name), var_values[i]);
             }
             match meval::eval_str_with_context(self.eq, &ctx) {
-                Ok(result) => series.push(result),
+                Ok(result) => {
+                    // Only retain finite results; non-finite outputs (inf, NaN) arise
+                    // from degenerate models (e.g. division by zero) and must never
+                    // reach compute_histogram, which would panic on NaN comparisons
+                    // or corrupt the bucket index arithmetic on inf.
+                    if result.is_finite() {
+                        series.push(result);
+                    }
+                }
                 Err(e) => {
                     bail!("Error evaluating the equation: {:?}", e);
                 }
             }
         }
         let histogram = Equation::compute_histogram(&mut series, &self.step)
-            .ok_or_else(|| anyhow!("Error bucket'ing the data series"))?;
+            .ok_or_else(|| anyhow!("The equation produced an undefined result (e.g. division by zero) — check the formula/bounds."))?;
         let mut evaluated_self = Equation::with_status(self, Evaluated);
         evaluated_self.hist = Some(histogram);
         Ok(evaluated_self)
@@ -475,6 +483,58 @@ mod tests {
         if let ValidEquation::Partial(..) = eq.add_variables(&vars).unwrap() {
             panic!("wrong type")
         }
+    }
+
+    // simulate — non-finite output must never panic ///////////////////////////
+
+    const NON_FINITE_ERR: &str =
+        "The equation produced an undefined result (e.g. division by zero) — check the formula/bounds.";
+
+    /// `X / Y` where Y is always 0 (range lower=upper=0) produces inf for every
+    /// sample; after filtering non-finite values the surviving series is empty,
+    /// so simulate must return Err with the exact diagnostic message.
+    #[test]
+    fn simulate_div_zero_range_returns_err() {
+        let vars = vec![
+            VariableDescription {
+                name: "X",
+                shape: "normal",
+                lower: 1.,
+                upper: 10.,
+            },
+            VariableDescription {
+                name: "Y",
+                shape: "range",
+                lower: 0.,
+                upper: 0.,
+            },
+        ];
+        let result = simulate("X / Y", &vars, &1_000, &0.1);
+        assert!(result.is_err(), "expected Err, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            NON_FINITE_ERR,
+            "wrong error message"
+        );
+    }
+
+    /// `X / 0` (literal zero denominator) — meval evaluates this to inf for
+    /// every sample; same expected Err path as above.
+    #[test]
+    fn simulate_literal_div_zero_returns_err() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        let result = simulate("X / 0", &vars, &1_000, &0.1);
+        assert!(result.is_err(), "expected Err, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            NON_FINITE_ERR,
+            "wrong error message"
+        );
     }
 
     // Equation<FullyDefined> /////////////////////////////////////////////////
