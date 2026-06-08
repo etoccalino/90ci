@@ -166,7 +166,7 @@ impl<'a> Equation<'a, FullyDefined> {
     /// Given a data series and a bucket size, return a pair of vectors:
     /// - first vector carries the buckets in the series, and
     /// - second vector carries the number of data points in the corresponding bucket.
-    /// Fails if the vector is empty or has a single element.
+    ///   Fails if the vector is empty or has a single element.
     fn compute_histogram(series: &mut Vec<f64>, bucket_size: &f64) -> Option<Histogram> {
         if series.len() < 2 {
             return None;

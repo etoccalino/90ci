@@ -3,9 +3,7 @@ use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
-/// Build a `JsValue` array of variable descriptors from plain Rust data.
-/// We serialise via `serde-wasm-bindgen` to stay consistent with what the
-/// production path expects on the other side of `simulate`.
+// Serialise via serde-wasm-bindgen so simulate()'s real from_value deserializer is exercised with well-typed input.
 fn make_vars(vars: &[(&str, &str, f64, f64)]) -> JsValue {
     use serde::Serialize;
 
@@ -43,10 +41,7 @@ fn simulate_round_trip_returns_ok_with_plausible_output() {
 
     let result = simulate("A + B", vars, 1_000, 1.0);
 
-    // The call must succeed.
-    assert!(result.is_ok(), "simulate returned Err: {:?}", result.err());
-
-    let js_out = result.unwrap();
+    let js_out = result.expect("simulate returned Err");
 
     // Deserialise back to a typed struct to assert on the values.
     #[derive(serde::Deserialize, Debug)]
@@ -81,11 +76,7 @@ fn simulate_round_trip_returns_ok_with_plausible_output() {
         out.counts.len(),
         "buckets and counts must have equal length"
     );
-    // The sum of counts must equal the number of samples run.
+    // total may be less than samples once non-finite outputs are filtered (Stage 1).
     let total: usize = out.counts.iter().sum();
-    assert_eq!(
-        total, out.samples,
-        "sum of counts ({}) must equal samples ({})",
-        total, out.samples
-    );
+    assert!(total <= out.samples, "bucket counts ({total}) should not exceed samples ({})", out.samples);
 }
