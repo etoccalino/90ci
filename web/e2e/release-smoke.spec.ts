@@ -53,6 +53,9 @@ test.describe('Release smoke — default model end-to-end', () => {
     const ciRange = ciHero.locator('.ci-range span');
     // There are three spans: ciLow, the dash, ciHigh — verify count.
     await expect(ciRange).toHaveCount(3);
+    // Verify the first and last spans actually contain a rendered number.
+    await expect(ciHero.locator('.ci-range span').first()).toHaveText(/\d/);
+    await expect(ciHero.locator('.ci-range span').last()).toHaveText(/\d/);
 
     // The output chart SVG renders. The chart wrapper div is the reliable
     // visible container — the SVG <path>/<line> elements are geometry nodes
@@ -60,10 +63,9 @@ test.describe('Release smoke — default model end-to-end', () => {
     const chartWrap = page.locator('.chartwrap');
     await expect(chartWrap).toBeVisible({ timeout: 5_000 });
 
-    // The histogram area path and both dashed CI markers are attached to the DOM.
-    // We assert attachment (presence) rather than visibility because SVG geometry
-    // nodes have no CSS box model and Playwright marks them hidden by definition.
-    await expect(page.locator('[data-testid="area-path"]')).toBeAttached();
+    // The histogram area path must be attached and carry non-empty geometry.
+    // Both dashed CI markers are asserted for DOM presence.
+    await expect(page.locator('[data-testid="area-path"]')).toHaveAttribute('d', /\S/);
     await expect(page.locator('[data-testid="marker-low"]')).toBeAttached();
     await expect(page.locator('[data-testid="marker-high"]')).toBeAttached();
   });
@@ -101,16 +103,14 @@ test.describe('Release smoke — default model end-to-end', () => {
       observer.observe(document.body, { childList: true, subtree: true });
     });
 
-    // Capture t0 and fire the click atomically in one evaluate call so there
-    // is no IPC gap between the timestamp and the click.
+    // Record t0 inside the browser's performance.now() timeline so it shares
+    // the same origin as the MutationObserver t1 — no IPC inflation.
     await page.evaluate(() => {
       (window as unknown as Record<string, number>)['__runT0'] = performance.now();
-      const btn = document.querySelector<HTMLButtonElement>('button[aria-label="Run simulation"]')
-        ?? Array.from(document.querySelectorAll('button')).find(
-            (b) => /run/i.test(b.textContent ?? ''),
-          );
-      btn?.click();
     });
+    // Drive the click through Playwright so it uses the proven locator path.
+    // The ~1–5 ms localhost IPC gap is well within the 100 ms budget.
+    await page.getByRole('button', { name: /run/i }).click();
 
     // Wait for the result to appear in the DOM (upper bound: 5 s).
     await expect(page.locator('.ci-hero')).toBeVisible({ timeout: 5_000 });

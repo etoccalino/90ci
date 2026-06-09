@@ -42,5 +42,8 @@ export default defineConfig({
     reuseExistingServer: true,
     // Fail fast if the server doesn't come up within 10 s.
     timeout: 10_000,
+    // Surface preview errors instead of a blind timeout.
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 });
