@@ -122,9 +122,9 @@ export function ModelEditor({ model, onChange, onRun, running, runDisabled = fal
                   className="info-btn"
                   type="button"
                   aria-label="Distribution semantics"
-                  tabIndex={0}
+                  aria-describedby={`tooltip-${v.id}`}
                 >
-                  <span className="info-tooltip" role="tooltip">
+                  <span id={`tooltip-${v.id}`} className="info-tooltip" role="tooltip">
                     {DISTRIBUTION_TOOLTIP}
                   </span>
                 </button>
@@ -149,7 +149,12 @@ export function ModelEditor({ model, onChange, onRun, running, runDisabled = fal
               </div>
               <div className="cell spark-cell">
                 <Sparkline shape={v.shape} />
-                <button className="rm" title="Remove variable" onClick={() => removeVar(v.id)}>
+                <button
+                  className="rm"
+                  title="Remove variable"
+                  aria-label={`Remove variable ${rowNum}`}
+                  onClick={() => removeVar(v.id)}
+                >
                   ×
                 </button>
               </div>

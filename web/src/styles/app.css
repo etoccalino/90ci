@@ -7,7 +7,7 @@
   --line-2: rgba(55, 53, 47, 0.16);
   --hover: #f6f5f3;
   --bg: #ffffff;
-  /* Darkened from #2a72d4 → #2065bb for WCAG AA on blue-bg (4.93:1) and white (5.77:1) */
+  /* Darkened from #2a72d4 → #2065bb for WCAG AA on blue-bg (4.88:1) and white (5.77:1) */
   --blue: #2065bb;
   --blue-bg: color-mix(in srgb, var(--blue) 12%, #ffffff);
   /* Darkened from #4f8a5b → #477851 for WCAG AA on grn-bg (4.55:1) and white (5.16:1) */
@@ -302,7 +302,7 @@ button {
   color: var(--ink-3);
   font-size: 11px;
   font-weight: 700;
-  cursor: default;
+  cursor: pointer;
   border-radius: 50%;
   flex: none;
   padding: 0;

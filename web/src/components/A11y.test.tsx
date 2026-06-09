@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
-import { ModelEditor } from './ModelEditor';
+import { ModelEditor, DISTRIBUTION_TOOLTIP } from './ModelEditor';
 import type { Model } from '../model';
 
 // ─── WASM mock ───────────────────────────────────────────────────────────────
@@ -41,12 +41,6 @@ beforeEach(() => {
   wasmControl.simulateImpl = vi.fn().mockReturnValue(GOOD_RESULT);
 });
 
-// ─── Tooltip copy ─────────────────────────────────────────────────────────────
-// The single source string for the tooltip. All assertions derive from this
-// constant so a copy drift in ModelEditor is caught by one failure.
-const TOOLTIP_TEXT =
-  'For normal, these are the ~5th/95th percentiles. For uniform and range, they are the full minimum and maximum — the middle 90% falls inside them.';
-
 // ─── §5 tooltip — normal row ─────────────────────────────────────────────────
 describe('§5 — distribution semantics tooltip (normal variable)', () => {
   it('tooltip button is present in a row with shape=normal', () => {
@@ -63,12 +57,11 @@ describe('§5 — distribution semantics tooltip (normal variable)', () => {
         running={false}
       />,
     );
-    // The info button must be findable by accessible name.
     const btn = screen.getByRole('button', { name: /distribution semantics/i });
     expect(btn).toBeInTheDocument();
   });
 
-  it('tooltip text is reachable via accessible name on the info button (normal row)', () => {
+  it('info button on a normal row has accessible description equal to the exported tooltip copy', () => {
     const model: Model = {
       name: 'T',
       equation: 'X',
@@ -83,14 +76,9 @@ describe('§5 — distribution semantics tooltip (normal variable)', () => {
       />,
     );
     const btn = screen.getByRole('button', { name: /distribution semantics/i });
-    // The tooltip content must be reachable; the button's aria-label carries the copy.
+    // Accessible NAME stays "Distribution semantics"; accessible DESCRIPTION is the §5 copy.
     expect(btn).toHaveAccessibleName(/distribution semantics/i);
-    // The tooltip element itself must contain the full copy text.
-    // It is present in the DOM (keyboard-focusable affordance requires DOM presence).
-    expect(screen.getByText(new RegExp(
-      'full minimum and maximum',
-      'i',
-    ))).toBeInTheDocument();
+    expect(btn).toHaveAccessibleDescription(DISTRIBUTION_TOOLTIP);
   });
 });
 
@@ -114,7 +102,7 @@ describe('§5 — distribution semantics tooltip (uniform variable)', () => {
     expect(btn).toBeInTheDocument();
   });
 
-  it('tooltip text is reachable via accessible name on the info button (uniform row)', () => {
+  it('info button on a uniform row has accessible description equal to the exported tooltip copy', () => {
     const model: Model = {
       name: 'T',
       equation: 'X',
@@ -128,10 +116,8 @@ describe('§5 — distribution semantics tooltip (uniform variable)', () => {
         running={false}
       />,
     );
-    expect(screen.getByText(new RegExp(
-      'full minimum and maximum',
-      'i',
-    ))).toBeInTheDocument();
+    const btn = screen.getByRole('button', { name: /distribution semantics/i });
+    expect(btn).toHaveAccessibleDescription(DISTRIBUTION_TOOLTIP);
   });
 });
 
@@ -151,23 +137,22 @@ describe('§5 — copy review: tooltip makes no percentile claim for uniform/ran
         running={false}
       />,
     );
-    // The rendered tooltip must contain the honest claim.
+    // The rendered tooltip element must contain the honest claim.
     expect(screen.getByText(new RegExp(
       'full minimum and maximum',
       'i',
     ))).toBeInTheDocument();
   });
 
-  it('the TOOLTIP_TEXT constant does NOT claim uniform/range are percentiles', () => {
+  it('DISTRIBUTION_TOOLTIP does NOT claim uniform/range are percentiles', () => {
     // Ensure the canonical copy never says uniform/range bounds are percentiles.
-    // A percentile claim is the pattern "uniform.*percentile" or "range.*percentile".
-    expect(TOOLTIP_TEXT).not.toMatch(/uniform.*percentile/i);
-    expect(TOOLTIP_TEXT).not.toMatch(/range.*percentile/i);
+    expect(DISTRIBUTION_TOOLTIP).not.toMatch(/uniform.*percentile/i);
+    expect(DISTRIBUTION_TOOLTIP).not.toMatch(/range.*percentile/i);
   });
 
-  it('the TOOLTIP_TEXT constant contains the exact honest copy about uniform/range', () => {
-    expect(TOOLTIP_TEXT).toContain('full minimum and maximum');
-    expect(TOOLTIP_TEXT).toContain('the middle 90% falls inside them');
+  it('DISTRIBUTION_TOOLTIP contains the exact honest copy about uniform/range', () => {
+    expect(DISTRIBUTION_TOOLTIP).toContain('full minimum and maximum');
+    expect(DISTRIBUTION_TOOLTIP).toContain('the middle 90% falls inside them');
   });
 });
 
@@ -217,6 +202,10 @@ describe('§7 a11y — accessible names', () => {
     expect(
       screen.getByRole('spinbutton', { name: /^95th percentile bound for base_fee/i }),
     ).toBeInTheDocument();
+
+    // Remove buttons — one per variable row, labeled with 1-based row number.
+    expect(screen.getByRole('button', { name: /remove variable 1/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /remove variable 2/i })).toBeInTheDocument();
   });
 });
 
