@@ -8,7 +8,6 @@ import { ResultPanel } from './components/ResultPanel';
 const INITIAL_MODEL: Model = {
   name: 'Exchange exposure',
   equation: '200 * EXCHANGE_RATE + BASE_FEE',
-  samples: 10_000,
   variables: [
     { id: 'v1', name: 'EXCHANGE_RATE', shape: 'uniform', p5: 1000, p95: 1200 },
     { id: 'v2', name: 'BASE_FEE', shape: 'normal', p5: 0, p95: 50 },

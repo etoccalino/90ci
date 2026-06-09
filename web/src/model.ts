@@ -12,7 +12,6 @@ export interface Model {
   name: string;
   equation: string;
   variables: Variable[];
-  samples: number;
 }
 
 export interface SimResult {
@@ -24,4 +23,3 @@ export interface SimResult {
 }
 
 export const SHAPES: Shape[] = ['uniform', 'normal', 'range'];
-export const SAMPLE_OPTIONS = [1_000, 10_000, 100_000] as const;
