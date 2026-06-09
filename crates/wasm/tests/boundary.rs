@@ -63,6 +63,253 @@ fn simulate_div_zero_returns_err_not_trap() {
     );
 }
 
+// Stage 3 boundary tests — engine-side validation & honest error messages.
+//
+// Validation precedence (one violation per run, lowest wins):
+//   E-05a: empty/blank equation  → "Enter an equation."
+//   E-05b: zero variable rows    → "Add at least one variable."
+//   E-12:  duplicate var names   → "Two variables are named `X` — names must be unique."
+//   per-variable (in slice order):
+//     E-02: var defined, not used → "`X` is defined but not used — use it or remove the row."
+//     E-03: inverted bounds       → "`X`: 5th (…) must be below 95th (…)."
+//     E-11: bad shape             → "Unsupported distribution. Use either 'normal', 'range' or 'uniform'."
+//   E-01: token with no var row  → "`X` is used in the equation but not defined — add a variable row for it (or remove it)."
+
+/// E-05a: empty equation string must produce a readable error naming the fix.
+#[wasm_bindgen_test]
+fn simulate_empty_equation_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[("X", "uniform", 1.0, 2.0)]);
+    let result = simulate("", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for empty equation")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert_eq!(err_str, "Enter an equation.", "E-05a: wrong error for empty equation");
+}
+
+/// E-05a: whitespace-only equation is treated as empty.
+#[wasm_bindgen_test]
+fn simulate_whitespace_equation_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[("X", "uniform", 1.0, 2.0)]);
+    let result = simulate("   ", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for whitespace equation")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert_eq!(err_str, "Enter an equation.", "E-05a: wrong error for whitespace equation");
+}
+
+/// E-05b: empty variable slice must produce a readable error naming the fix.
+#[wasm_bindgen_test]
+fn simulate_empty_vars_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[]);
+    let result = simulate("X + Y", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for empty vars")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert_eq!(err_str, "Add at least one variable.", "E-05b: wrong error for empty vars");
+}
+
+/// E-12: duplicate variable names must be blocked with the offending name in the message.
+#[wasm_bindgen_test]
+fn simulate_duplicate_variable_names_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[
+        ("X", "uniform", 1.0, 2.0),
+        ("X", "normal", 3.0, 8.0),
+    ]);
+    let result = simulate("X", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for duplicate variable name")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("`X`"),
+        "E-12: error must name the duplicate, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("names must be unique"),
+        "E-12: error must mention unique names, got: {}",
+        err_str
+    );
+    assert_eq!(
+        err_str,
+        "Two variables are named `X` — names must be unique.",
+        "E-12: wrong error message"
+    );
+}
+
+/// E-02: variable defined but not used in the equation must produce a message naming the row
+/// and the corrective action.
+#[wasm_bindgen_test]
+fn simulate_variable_not_used_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[
+        ("X", "uniform", 1.0, 2.0),
+        ("Unused", "uniform", 1.0, 2.0),
+    ]);
+    let result = simulate("X", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for unused variable")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("`Unused`"),
+        "E-02: error must name the unused variable, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("remove the row"),
+        "E-02: error must contain corrective phrasing, got: {}",
+        err_str
+    );
+    assert_eq!(
+        err_str,
+        "`Unused` is defined but not used — use it or remove the row.",
+        "E-02: wrong error message"
+    );
+}
+
+/// E-03: inverted bounds (lower > upper) must produce a message naming the variable and the values.
+#[wasm_bindgen_test]
+fn simulate_inverted_bounds_returns_named_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[("Revenue", "normal", 10.0, 5.0)]);
+    let result = simulate("Revenue", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for inverted bounds")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("`Revenue`"),
+        "E-03: error must name the variable, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("must be below"),
+        "E-03: error must describe the constraint, got: {}",
+        err_str
+    );
+    assert_eq!(
+        err_str,
+        "`Revenue`: 5th (10) must be below 95th (5).",
+        "E-03: wrong error message"
+    );
+}
+
+/// E-11: unsupported distribution shape must produce the exact guidance message.
+#[wasm_bindgen_test]
+fn simulate_bad_shape_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[("X", "poisson", 1.0, 2.0)]);
+    let result = simulate("X", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for bad shape")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("Unsupported distribution"),
+        "E-11: error must mention unsupported distribution, got: {}",
+        err_str
+    );
+    assert_eq!(
+        err_str,
+        "Unsupported distribution. Use either 'normal', 'range' or 'uniform'.",
+        "E-11: wrong error message"
+    );
+}
+
+/// E-01 (plural): equation with two missing tokens must name BOTH in the error,
+/// each backtick-quoted.
+#[wasm_bindgen_test]
+fn simulate_multiple_missing_tokens_names_all() {
+    use ninety_ci_wasm::simulate;
+
+    // Equation "A + B + C" with only "A" supplied → B and C are missing tokens (E-01 plural).
+    // Supplying "A" satisfies E-05b (non-empty vars) and E-02 (A is used).
+    let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
+    let result = simulate("A + B + C", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for multiple missing tokens")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("`B`"),
+        "E-01 (plural): error must name missing token B, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("`C`"),
+        "E-01 (plural): error must name missing token C, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("are used in the equation but not defined"),
+        "E-01 (plural): error must use plural phrasing, got: {}",
+        err_str
+    );
+}
+
+/// E-01: equation token with no variable row must produce a message naming the undeclared token
+/// and the corrective action.
+#[wasm_bindgen_test]
+fn simulate_missing_token_returns_named_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
+    // Equation references B which has no variable row.
+    let result = simulate("A + B", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for missing token")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("`B`"),
+        "E-01: error must name the missing token, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("add a variable row"),
+        "E-01: error must contain corrective phrasing, got: {}",
+        err_str
+    );
+    assert_eq!(
+        err_str,
+        "`B` is used in the equation but not defined — add a variable row for it (or remove it).",
+        "E-01: wrong error message"
+    );
+}
+
 /// Happy-path round-trip: `simulate` with a simple two-variable normal model
 /// must return `Ok` and a structurally plausible `SimOutput`.
 #[wasm_bindgen_test]

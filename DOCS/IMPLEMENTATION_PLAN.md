@@ -67,7 +67,7 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 
 ---
 
-## Stage 3 — Engine-side validation & honest messages (E-01, E-02, E-03, E-05, E-11, E-12)
+## Stage 3 — Engine-side validation & honest messages (E-01, E-02, E-03, E-05, E-11, E-12) - DONE
 
 **Goal:** every engine-sourced error names the offending field and the fix; no silent merges.
 
