@@ -178,7 +178,7 @@ impl<'a> Equation<'a, FullyDefined> {
         //   Get the lowest and highest values in the vector.
         //   Generate the array of buckets using lowest, highest and bucket_size.
         //   Initialize the results vector with zeroes.
-        series.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        series.sort_by(|a, b| a.total_cmp(b));
         let lowest = series.first()?;
         let highest = series.last()?;
         let mut bucket = lowest - lowest.rem_euclid(*bucket_size);
@@ -193,9 +193,18 @@ impl<'a> Equation<'a, FullyDefined> {
         //   For each value: compute which bucket it corresponds to using `bucket_size * (val % bucket_size)`
         //                   increment the bucket's entry in the results vector.
         let buckets_offset = lowest.div_euclid(*bucket_size); // can be negative
-        let mut bucket_index: usize;
+        let last_ix = buckets.len() - 1; // guaranteed >= 0 since len >= 1 (we pushed at least one bucket above)
         for val in series {
-            bucket_index = (val.div_euclid(*bucket_size) - buckets_offset) as usize;
+            let raw = val.div_euclid(*bucket_size) - buckets_offset;
+            // Guard against a negative raw index (shouldn't happen for finite values >= lowest,
+            // but floating-point arithmetic can produce a tiny negative due to rounding).
+            // Also clamp to last_ix: floating-point rounding near the highest value can push
+            // the computed index one past the end.
+            let bucket_index = if raw < 0.0 {
+                0_usize
+            } else {
+                (raw as usize).min(last_ix)
+            };
             counts[bucket_index] += 1;
         }
         Some((buckets, counts))
@@ -212,14 +221,22 @@ impl<'a> Equation<'a, FullyDefined> {
                 ctx.var(String::from(*var_name), var_values[i]);
             }
             match meval::eval_str_with_context(self.eq, &ctx) {
-                Ok(result) => series.push(result),
+                Ok(result) => {
+                    // Only retain finite results; non-finite outputs (inf, NaN) arise
+                    // from degenerate models (e.g. division by zero) and must never
+                    // reach compute_histogram, which would panic on NaN comparisons
+                    // or corrupt the bucket index arithmetic on inf.
+                    if result.is_finite() {
+                        series.push(result);
+                    }
+                }
                 Err(e) => {
                     bail!("Error evaluating the equation: {:?}", e);
                 }
             }
         }
         let histogram = Equation::compute_histogram(&mut series, &self.step)
-            .ok_or_else(|| anyhow!("Error bucket'ing the data series"))?;
+            .ok_or_else(|| anyhow!("The equation produced an undefined result (e.g. division by zero) — check the formula/bounds."))?;
         let mut evaluated_self = Equation::with_status(self, Evaluated);
         evaluated_self.hist = Some(histogram);
         Ok(evaluated_self)
@@ -241,11 +258,19 @@ impl<'a> Equation<'a, Evaluated> {
             .as_ref()
             .ok_or_else(|| anyhow!("Equation was not evaluated!?"))?;
 
-        let mut lower: &f64 = buckets.first().unwrap();
-        let mut upper: &f64 = buckets.last().unwrap();
-        let mut acc = 0.;
+        let mut lower: &f64 = buckets
+            .first()
+            .ok_or_else(|| anyhow!("Histogram has no buckets — equation may be degenerate."))?;
+        let mut upper: &f64 = buckets
+            .last()
+            .ok_or_else(|| anyhow!("Histogram has no buckets — equation may be degenerate."))?;
+        let total: usize = counts.iter().sum();
+        // total > 0 is guaranteed: compute_histogram returns Some only when series.len() >= 2,
+        // and evaluate only calls it after filtering non-finite values, so the Ok path here
+        // requires at least two finite samples.
+        let mut acc = 0_f64;
         for ix in 0..buckets.len() {
-            acc += counts[ix] as f32 / self.resolution as f32;
+            acc += counts[ix] as f64 / total as f64;
 
             if acc <= 0.05 {
                 // Drag the lower bound up
@@ -475,6 +500,112 @@ mod tests {
         if let ValidEquation::Partial(..) = eq.add_variables(&vars).unwrap() {
             panic!("wrong type")
         }
+    }
+
+    // simulate — non-finite output must never panic ///////////////////////////
+
+    const NON_FINITE_ERR: &str =
+        "The equation produced an undefined result (e.g. division by zero) — check the formula/bounds.";
+
+    /// `X / Y` where Y is always 0 (range lower=upper=0) produces inf for every
+    /// sample; after filtering non-finite values the surviving series is empty,
+    /// so simulate must return Err with the exact diagnostic message.
+    #[test]
+    fn simulate_div_zero_range_returns_err() {
+        let vars = vec![
+            VariableDescription {
+                name: "X",
+                shape: "normal",
+                lower: 1.,
+                upper: 10.,
+            },
+            VariableDescription {
+                name: "Y",
+                shape: "range",
+                lower: 0.,
+                upper: 0.,
+            },
+        ];
+        let result = simulate("X / Y", &vars, &1_000, &0.1);
+        assert!(result.is_err(), "expected Err, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            NON_FINITE_ERR,
+            "wrong error message"
+        );
+    }
+
+    /// `X / 0` (literal zero denominator) — meval evaluates this to inf for
+    /// every sample; same expected Err path as above.
+    #[test]
+    fn simulate_literal_div_zero_returns_err() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        let result = simulate("X / 0", &vars, &1_000, &0.1);
+        assert!(result.is_err(), "expected Err, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            NON_FINITE_ERR,
+            "wrong error message"
+        );
+    }
+
+    /// `0 / 0` produces NaN for every sample. is_finite() is false for NaN, so all
+    /// samples are dropped and simulate must return the same Err as the inf case.
+    /// This confirms that the non-finite filter covers NaN, not only inf.
+    #[test]
+    fn simulate_nan_model_returns_err() {
+        // X is range(0,0) so every sample is exactly 0; 0/0 = NaN in IEEE 754.
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "range",
+            lower: 0.,
+            upper: 0.,
+        }];
+        let result = simulate("X / X", &vars, &1_000, &0.1);
+        assert!(result.is_err(), "expected Err for NaN model, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            NON_FINITE_ERR,
+            "wrong error message for NaN model"
+        );
+    }
+
+    /// Partially-degenerate model: `X / (X - 5)` where X is range(0, 10).
+    /// When X == 5, the denominator is 0 and the result is inf (non-finite, filtered out).
+    /// The remaining ~90 % of samples are finite, so simulate must return Ok.
+    /// The returned CI must satisfy the invariant ci_low <= ci_high.
+    ///
+    /// Because the samples are random we cannot pin exact bounds, so we assert
+    /// the robust invariants only. The denominator fix (dividing by surviving-sample
+    /// count, not configured resolution) is what makes the CI reach the 95 % threshold
+    /// even when some samples are dropped.
+    #[test]
+    fn simulate_partial_degenerate_returns_ok_with_valid_ci() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "range",
+            lower: 0.,
+            upper: 10.,
+        }];
+        // X = 5 is one of the 11 integer values (0..=10), so ~1/11 of samples are non-finite.
+        let result = simulate("X / (X - 5)", &vars, &5_000, &0.1);
+        assert!(
+            result.is_ok(),
+            "expected Ok for partially-degenerate model, got: {:?}",
+            result.err()
+        );
+        let sim = result.unwrap();
+        assert!(
+            sim.ci_low <= sim.ci_high,
+            "ci_low ({}) must be <= ci_high ({})",
+            sim.ci_low,
+            sim.ci_high
+        );
     }
 
     // Equation<FullyDefined> /////////////////////////////////////////////////
