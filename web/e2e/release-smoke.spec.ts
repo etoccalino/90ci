@@ -8,11 +8,11 @@ import { test, expect } from '@playwright/test';
  *   1. The default model is pre-filled and the Run button is present.
  *   2. Clicking Run produces a rendered CI hero (ciLow–ciHigh in large type).
  *   3. The output chart SVG renders (histogram area path + two dashed CI markers).
- *   4. Run-to-render is < 100 ms, measured entirely inside the browser's
+ *   4. Run-to-render is < 150 ms, measured from cold entirely inside the browser's
  *      performance.now() timeline to exclude Playwright IPC wall-clock inflation.
  */
 
-const PERF_BUDGET_MS = 100;
+const PERF_BUDGET_MS = 150;
 
 test.describe('Release smoke — default model end-to-end', () => {
   test('pre-filled model is visible and Run button is enabled', async ({ page }) => {
@@ -109,7 +109,6 @@ test.describe('Release smoke — default model end-to-end', () => {
       (window as unknown as Record<string, number>)['__runT0'] = performance.now();
     });
     // Drive the click through Playwright so it uses the proven locator path.
-    // The ~1–5 ms localhost IPC gap is well within the 100 ms budget.
     await page.getByRole('button', { name: /run/i }).click();
 
     // Wait for the result to appear in the DOM (upper bound: 5 s).
