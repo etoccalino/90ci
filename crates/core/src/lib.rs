@@ -258,13 +258,21 @@ impl<'a> Equation<'a, FullyDefined> {
         let mut ctx = meval::Context::new(); // The context to pass samples to evaluate the equation.
         let mut series: Vec<f64> = Vec::with_capacity(self.resolution); // Hold results of evaluating the equation.
 
+        // Parse the equation ONCE; the per-sample loop only re-binds variables and
+        // re-evaluates the parsed AST. Re-parsing the string every iteration (the old
+        // `eval_str_with_context`) was an O(resolution) tokenize/parse hotspot.
+        let expr: meval::Expr = match self.eq.parse() {
+            Ok(e) => e,
+            Err(e) => bail!("Error evaluating the equation: {:?}", e),
+        };
+
         // Evaluate the equation using the samples.
         for i in 0..self.resolution {
             // Update the evaluation context.
             for (var_name, var_values) in self.vars.iter() {
                 ctx.var(String::from(*var_name), var_values[i]);
             }
-            match meval::eval_str_with_context(self.eq, &ctx) {
+            match expr.eval_with_context(&ctx) {
                 Ok(result) => {
                     // Only retain finite results; non-finite outputs (inf, NaN) arise
                     // from degenerate models (e.g. division by zero) and must never

@@ -9,6 +9,7 @@
 6. ALWAYS make a new input-validation guard use the strictest predicate that still admits existing degenerate-but-valid inputs (E-03 used `lower > upper`, not `>=`) BECAUSE it guards against unforeseen edge cases.
 7. ALWAYS `git status --porcelain` before committing an agent's implementation pass and reject unexpected files BECAUSE agents and users may accidentally add changes that piggy-back on the commit.
 8. NEVER let a test assert only the negative ("the error is NOT message X") without also asserting the positive outcome (`is_ok()` or the exact expected message) BECAUSE a negative-only assertion passes even when the code returns a different error.
+9. ALWAYS run one warmup Run before the timed Run when asserting a cold-start-sensitive perf budget in an E2E spec BECAUSE the first interaction pays JIT/GC cost.
 
 ### Rust related rules
 R1. ALWAYS treat trading a panic for a silently-wrong result as a regression, not a fix BECAUSE silent errors can't be found by unit tests.
@@ -19,6 +20,7 @@ R5. ALWAYS add a boundary (`wasm-bindgen-test`) case for every engine error vari
 R6. ALWAYS guard a float-accumulator loop (`while x <= hi { x += step }`) with a no-progress check (`let next = x + step; if next == x { break; }`) BECAUSE when `step` is smaller than `ULP(x)` the addition is a no-op and the loop never terminates.
 R7. ALWAYS re-audit a downstream consumer's numerical assumptions when you replace a hardcoded constant with a value derived from observed data BECAUSE the dynamic value can reach degenerate extremes.
 R8. ALWAYS clamp a data-derived divisor/step to a positive, finite minimum tied to the operand magnitude (`x.abs() * f64::EPSILON * k`) BECAUSE `range / n` can underflow to a step that cannot advance an accumulator at that magnitude.
+R9. ALWAYS parse the equation once into an AST out of a per-sample Monte-Carlo loop BECAUSE re-parsing per sample is an O(resolution) performance drain.
 
 ### Front-end related rules
 F1. ALWAYS keep Vitest `globals: true` set when using `@testing-library/react` BECAUSE its auto-cleanup accumulates prior renders in the jsdom DOM across a file, so any DOM-count assertion (e.g. "exactly N comboboxes") silently counts stale nodes.

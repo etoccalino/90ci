@@ -1,4 +1,4 @@
-# v1 implementation plan (DRAFT)
+# v1 implementation plan
 
 Derived from `DOCS/PRD/90ci-web-calculator.md` and `DOCS/PRD/v1-acceptance.md`. The organizing principle is **build the feedback loop first, then drive every stage with tests that encode the §4 error matrix and the §1/§3/§5/§6/§7 acceptance criteria.** Each stage ends with a runnable milestone and closes specific Definition-of-Done boxes (§9).
 
