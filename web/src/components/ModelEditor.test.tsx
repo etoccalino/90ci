@@ -43,14 +43,9 @@ describe('ModelEditor — sample count control', () => {
       />,
     );
 
-    // The distribution selects (one per variable) have a specific value equal
-    // to the variable's shape. A sample-count select would carry a numeric
-    // value like "1000", "10000", or "100000". Assert none of those exist.
     const allComboboxes = screen.queryAllByRole('combobox');
-    const sampleCountComboboxes = allComboboxes.filter((el) =>
-      ['1000', '10000', '100000', '5000'].includes((el as HTMLSelectElement).value),
-    );
-    expect(sampleCountComboboxes).toHaveLength(0);
+    // One distribution select per variable, nothing more (no sample-count select).
+    expect(allComboboxes).toHaveLength(BASE_MODEL.variables.length);
   });
 
   it('still renders the hint note about percentile bounds', () => {

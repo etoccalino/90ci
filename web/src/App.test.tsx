@@ -48,8 +48,11 @@ describe('Run — hard-wired sample count', () => {
     await user.click(runButtons[0]);
 
     expect(simulateMock).toHaveBeenCalled();
-    // Third positional argument is the samples count.
-    const samplesArg = simulateMock.mock.calls[0][2];
-    expect(samplesArg).toBe(5000);
+    expect(simulateMock).toHaveBeenCalledWith(
+      expect.any(String),   // equation
+      expect.any(Array),    // vars
+      5000,                 // SAMPLES — the invariant under test
+      expect.any(Number),   // step
+    );
   });
 });

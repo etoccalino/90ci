@@ -46,7 +46,7 @@ Styles:
 - `web/src/styles/app.css` — global CSS: design tokens (color, type, spacing) plus component styles.
 
 Tests (`web/`):
-- `web/vite.config.ts` — Vitest config (`defineConfig` from `vitest/config`): `test.environment = 'jsdom'`, `globals: true`, `setupFiles: ['./src/setupTests.ts']`.
+- `web/vite.config.ts` — Vitest config (`defineConfig` from `vitest/config`): `test.environment = 'jsdom'`, `globals: true`, `setupFiles: ['./src/setupTests.ts']`. `globals: true` is required for `@testing-library/react`'s auto-cleanup (it registers via a global `afterEach`), which keeps prior renders from accumulating in the jsdom DOM across tests in a file.
 - `web/src/setupTests.ts` — imports `@testing-library/jest-dom/vitest` to register DOM matchers (and their Vitest `Assertion` types).
 - `web/src/App.test.tsx` — smoke test: mocks the WASM glue module, renders `<App>`, asserts the prefilled model name and an enabled Run button; plus a test asserting `simulate` is invoked with `5000` as its samples argument (PRD §1). Run with `pnpm -C web test`.
 - `web/src/components/ModelEditor.test.tsx` — asserts the sample-count control is gone (no "Samples" label, no sample-count combobox) and the percentile-bounds hint note still renders.
