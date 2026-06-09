@@ -25,12 +25,10 @@ fn main() {
     let vars: Vec<&str> = matches.values_of("vars").unwrap().collect();
 
     const ITERATIONS: usize = 5000;
-    const BUCKET_SIZE: f64 = 0.1;
     let (lower, upper) = ninety_ci_core::ci90(
         equation,
         &parse_variables_descriptions(&vars).unwrap(),
         &ITERATIONS,
-        &BUCKET_SIZE,
     )
     .unwrap();
 

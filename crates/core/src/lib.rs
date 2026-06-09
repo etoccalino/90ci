@@ -55,7 +55,6 @@ type Histogram = (Vec<f64>, Vec<usize>);
 struct Equation<'a, Status> {
     _status: Status,                  // Current status of the equation
     eq: &'a str,                      // String representation of the equation
-    step: f64,                        // size of buckets
     resolution: usize,                // number of samples to take for each distribution
     vars: HashMap<&'a str, Vec<f64>>, // statrs distributions for the Variables, ready to be used
     var_names: HashSet<&'a str>,      // List variables needed to define the equation
@@ -76,16 +75,13 @@ enum ValidEquation<'a> {
 impl<'a, Status> Equation<'a, Status> {
     fn new(
         eq: &'a str,
-        samples_num: Option<usize>, // Optional, defaults to 5.000 samples
-        step_size: Option<f64>,     // Optional, defaults to 0.1 bucket size
+        samples_num: Option<usize>, // Optional, defaults to 5,000 samples
     ) -> Equation<'a, UnderDefined> {
         let var_names = Equation::<UnderDefined>::extract_variable_names(eq);
         let resolution = samples_num.unwrap_or(5_000);
-        let step = step_size.unwrap_or(0.1);
         Equation {
             _status: UnderDefined,
             eq,
-            step,
             resolution,
             vars: HashMap::with_capacity(var_names.len()),
             var_names: var_names.into_iter().collect(),
@@ -97,7 +93,6 @@ impl<'a, Status> Equation<'a, Status> {
         Equation {
             _status: new,
             eq: self.eq,
-            step: self.step,
             resolution: self.resolution,
             vars: self.vars,
             var_names: self.var_names,
@@ -212,9 +207,15 @@ impl<'a> Equation<'a, FullyDefined> {
         while bucket <= *highest {
             buckets.push(bucket);
             counts.push(0);
-            bucket += bucket_size;
+            let next = bucket + bucket_size;
+            // No-progress guard: if IEEE-754 arithmetic makes next == bucket
+            // (step is smaller than ULP(bucket)), adding forever cannot help.
+            // Break out so the loop never hangs on a subnormal step.
+            if next == bucket {
+                break;
+            }
+            bucket = next;
         }
-        counts.resize(buckets.len(), 0);
 
         // Part two:
         //   For each value: compute which bucket it corresponds to using `bucket_size * (val % bucket_size)`
@@ -262,7 +263,19 @@ impl<'a> Equation<'a, FullyDefined> {
                 }
             }
         }
-        let histogram = Equation::compute_histogram(&mut series, &self.step)
+        // Derive the bucket step from the observed output range so the histogram
+        // targets ~50–100 buckets regardless of output magnitude (R3: clamp is in
+        // compute_histogram; degenerate range → step=1.0 → single bucket spike).
+        let step = {
+            // series may be empty here if every sample was non-finite (e.g. all-NaN or
+            // all-inf model).  In that case reduce(...) returns None and unwrap_or(0.0)
+            // yields lowest=highest=0.0, so compute_step returns the 1.0 default and
+            // compute_histogram(len 0) returns None, which propagates as Err below.
+            let lowest = series.iter().copied().reduce(f64::min).unwrap_or(0.0);
+            let highest = series.iter().copied().reduce(f64::max).unwrap_or(0.0);
+            compute_step(lowest, highest)
+        };
+        let histogram = Equation::compute_histogram(&mut series, &step)
             .ok_or_else(|| anyhow!("The equation produced an undefined result (e.g. division by zero) — check the formula/bounds."))?;
         let mut evaluated_self = Equation::with_status(self, Evaluated);
         evaluated_self.hist = Some(histogram);
@@ -338,12 +351,7 @@ pub struct Simulation {
 /// Entrypoint to the library: run the Monte-Carlo simulation and return both the
 /// 90% confidence interval and the output histogram.
 /// Use the `VariableDescription` struct to describe each variable.
-pub fn simulate(
-    eq: &str,
-    vars: &[VariableDescription],
-    iterations: &usize,
-    step: &f64,
-) -> Result<Simulation> {
+pub fn simulate(eq: &str, vars: &[VariableDescription], iterations: &usize) -> Result<Simulation> {
     // E-05a: empty or blank equation
     if eq.trim().is_empty() {
         bail!("Enter an equation.");
@@ -354,7 +362,7 @@ pub fn simulate(
     }
 
     let initial_model: Equation<UnderDefined> =
-        Equation::<UnderDefined>::new(eq, Some(*iterations), Some(*step));
+        Equation::<UnderDefined>::new(eq, Some(*iterations));
 
     match initial_model.add_variables(vars)? {
         ValidEquation::Full(equation) => {
@@ -406,14 +414,33 @@ pub fn simulate(
 }
 
 /// Convenience wrapper returning only the 90% confidence interval, as `(low, high)`.
-pub fn ci90(
-    eq: &str,
-    vars: &[VariableDescription],
-    iterations: &usize,
-    step: &f64,
-) -> Result<(f64, f64)> {
-    let s = simulate(eq, vars, iterations, step)?;
+pub fn ci90(eq: &str, vars: &[VariableDescription], iterations: &usize) -> Result<(f64, f64)> {
+    let s = simulate(eq, vars, iterations)?;
     Ok((s.ci_low, s.ci_high))
+}
+
+/// Compute the histogram bucket step from the observed output range, targeting ~50–100 buckets.
+///
+/// The divisor 75.0 is the midpoint of the 50–100 target, so a well-spread range will
+/// produce approximately 75 buckets. The degenerate case (highest <= lowest, i.e. all
+/// outputs are identical) returns 1.0 so that `compute_histogram` yields a single bucket
+/// (the E-03b zero-width spike).
+pub fn compute_step(lowest: f64, highest: f64) -> f64 {
+    if highest <= lowest {
+        return 1.0;
+    }
+    let step = (highest - lowest) / 75.0;
+    // Guard: step must always be strictly positive and finite. If arithmetic somehow
+    // produces a non-positive or non-finite value, fall back to the degenerate default.
+    if !(step > 0.0 && step.is_finite()) {
+        return 1.0;
+    }
+    // Clamp: if step is smaller than ~8 ULPs of the magnitude of the endpoints, the
+    // while loop in compute_histogram would spin without progress (bucket + step == bucket
+    // in IEEE-754).  Ensure step is large enough to always advance the loop.
+    let magnitude = lowest.abs().max(highest.abs());
+    let min_step = magnitude * f64::EPSILON * 8.0;
+    step.max(min_step)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -472,7 +499,7 @@ mod tests {
 
     #[test]
     fn add_variable_not_in_equation() {
-        let mut eq = Equation::<UnderDefined>::new("V1", None, None);
+        let mut eq = Equation::<UnderDefined>::new("V1", None);
         let var = VariableDescription {
             name: "V1",
             shape: "incorrect",
@@ -484,7 +511,7 @@ mod tests {
 
     #[test]
     fn add_variable_adds_var() {
-        let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let mut eq = Equation::<UnderDefined>::new("A + B", None);
         eq.add_variable(
             &(VariableDescription {
                 name: "A",
@@ -500,7 +527,7 @@ mod tests {
 
     #[test]
     fn add_variable_incorrect_type() {
-        let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let mut eq = Equation::<UnderDefined>::new("A + B", None);
         assert!(eq
             .add_variable(
                 &(VariableDescription {
@@ -516,7 +543,7 @@ mod tests {
     #[test]
     fn add_variable_incorrect_bounds() {
         // lower=100 > upper=2 trips E-03 before E-11 (bounds are checked before shape).
-        let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let mut eq = Equation::<UnderDefined>::new("A + B", None);
         let result = eq.add_variable(
             &(VariableDescription {
                 name: "A",
@@ -534,7 +561,7 @@ mod tests {
 
     #[test]
     fn add_variables_returns_partial() {
-        let eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let eq = Equation::<UnderDefined>::new("A + B", None);
         let vars = vec![VariableDescription {
             name: "A",
             shape: "uniform",
@@ -548,7 +575,7 @@ mod tests {
 
     #[test]
     fn add_variables_returns_full() {
-        let eq = Equation::<UnderDefined>::new("A + B", None, None);
+        let eq = Equation::<UnderDefined>::new("A + B", None);
         let vars = vec![
             VariableDescription {
                 name: "A",
@@ -592,7 +619,7 @@ mod tests {
                 upper: 0.,
             },
         ];
-        let result = simulate("X / Y", &vars, &1_000, &0.1);
+        let result = simulate("X / Y", &vars, &1_000);
         assert!(result.is_err(), "expected Err, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -611,7 +638,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         }];
-        let result = simulate("X / 0", &vars, &1_000, &0.1);
+        let result = simulate("X / 0", &vars, &1_000);
         assert!(result.is_err(), "expected Err, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -632,7 +659,7 @@ mod tests {
             lower: 0.,
             upper: 0.,
         }];
-        let result = simulate("X / X", &vars, &1_000, &0.1);
+        let result = simulate("X / X", &vars, &1_000);
         assert!(result.is_err(), "expected Err for NaN model, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -659,7 +686,7 @@ mod tests {
             upper: 10.,
         }];
         // X = 5 is one of the 11 integer values (0..=10), so ~1/11 of samples are non-finite.
-        let result = simulate("X / (X - 5)", &vars, &5_000, &0.1);
+        let result = simulate("X / (X - 5)", &vars, &5_000);
         assert!(
             result.is_ok(),
             "expected Ok for partially-degenerate model, got: {:?}",
@@ -744,7 +771,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         }];
-        let result = simulate("", &vars, &100, &0.1);
+        let result = simulate("", &vars, &100);
         assert!(result.is_err(), "expected Err for empty equation, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -762,7 +789,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         }];
-        let result = simulate("   ", &vars, &100, &0.1);
+        let result = simulate("   ", &vars, &100);
         assert!(result.is_err(), "expected Err for whitespace equation, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -774,7 +801,7 @@ mod tests {
     // E-05b: zero variables
     #[test]
     fn simulate_empty_vars_returns_err() {
-        let result = simulate("X + Y", &[], &100, &0.1);
+        let result = simulate("X + Y", &[], &100);
         assert!(result.is_err(), "expected Err for empty vars, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -786,7 +813,7 @@ mod tests {
     // E-05 ordering: empty-equation is checked before empty-vars
     #[test]
     fn simulate_empty_equation_takes_precedence_over_empty_vars() {
-        let result = simulate("", &[], &100, &0.1);
+        let result = simulate("", &[], &100);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -812,7 +839,7 @@ mod tests {
                 upper: 8.,
             },
         ];
-        let result = simulate("X", &vars, &100, &0.1);
+        let result = simulate("X", &vars, &100);
         assert!(result.is_err(), "expected Err for duplicate variable name, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -839,7 +866,7 @@ mod tests {
                 upper: 2.,
             },
         ];
-        let result = simulate("X", &vars, &100, &0.1);
+        let result = simulate("X", &vars, &100);
         assert!(result.is_err(), "expected Err for duplicate name, got Ok");
         let msg = result.unwrap_err().to_string();
         assert!(
@@ -871,7 +898,7 @@ mod tests {
                 upper: 2.,
             },
         ];
-        let result = simulate("X", &vars, &100, &0.1);
+        let result = simulate("X", &vars, &100);
         assert!(result.is_err(), "expected Err for unused variable, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -889,7 +916,7 @@ mod tests {
             lower: 10.,
             upper: 5.,
         }];
-        let result = simulate("Revenue", &vars, &100, &0.1);
+        let result = simulate("Revenue", &vars, &100);
         assert!(result.is_err(), "expected Err for inverted bounds, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -909,7 +936,7 @@ mod tests {
         }];
         // X is always 3; a constant series has length >= 2 so compute_histogram runs fine,
         // producing a single bucket with all samples. simulate must return Ok.
-        let result = simulate("X", &vars, &100, &0.1);
+        let result = simulate("X", &vars, &100);
         assert!(
             result.is_ok(),
             "equal bounds for range must succeed (not E-03), got: {:?}",
@@ -926,7 +953,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         }];
-        let result = simulate("X", &vars, &100, &0.1);
+        let result = simulate("X", &vars, &100);
         assert!(result.is_err(), "expected Err for bad shape, got Ok");
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -945,7 +972,7 @@ mod tests {
             upper: 2.,
         }];
         // Equation references B which has no variable row
-        let result = simulate("A + B", &vars, &100, &0.1);
+        let result = simulate("A + B", &vars, &100);
         assert!(result.is_err(), "expected Err for missing token, got Ok");
         let msg = result.unwrap_err().to_string();
         assert!(
@@ -974,7 +1001,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         }];
-        let result = simulate("A + B + C", &vars, &100, &0.1);
+        let result = simulate("A + B + C", &vars, &100);
         assert!(result.is_err(), "expected Err for multiple missing tokens");
         let msg = result.unwrap_err().to_string();
         // Both must appear backtick-quoted in the message (pinning the actual message format).
@@ -999,7 +1026,6 @@ mod tests {
         let eq = Equation::<Evaluated> {
             _status: Evaluated,
             eq: "A",
-            step: 0.5,
             resolution: 2,
             vars: HashMap::new(),
             var_names: HashSet::new(),
@@ -1017,7 +1043,6 @@ mod tests {
         let eq = Equation::<Evaluated> {
             _status: Evaluated,
             eq: "A",
-            step: 0.1,
             resolution: 2,
             vars: HashMap::new(),
             var_names: HashSet::new(),
@@ -1035,7 +1060,6 @@ mod tests {
         let eq = Equation::<Evaluated> {
             _status: Evaluated,
             eq: "A",
-            step: 0.1,
             resolution: 50,
             vars: HashMap::new(),
             var_names: HashSet::new(),
@@ -1063,7 +1087,7 @@ mod tests {
     fn probe_uniform_equal_bounds_simulate_does_not_panic() {
         // uniform(5, 5): statrs accepts it; simulate returns Ok (constant output, valid CI).
         let vars = vec![VariableDescription { name: "X", shape: "uniform", lower: 5., upper: 5. }];
-        let result = simulate("X", &vars, &100, &0.1);
+        let result = simulate("X", &vars, &100);
         // Must not panic; we don't enforce Ok vs Err here — just document the behaviour.
         let _ = result; // Ok(ci_low=5, ci_high=5) expected but not required by this probe
     }
@@ -1081,6 +1105,122 @@ mod tests {
             !msg.contains("must be below"),
             "normal equal-bounds must NOT produce E-03 message, got: {}",
             msg
+        );
+    }
+
+    // compute_step & bucket-count sanity (Stage 5) /////////////////////////////
+
+    /// Degenerate: compute_step(x, x) must return a strictly positive finite value
+    /// (never 0, never NaN, never inf).  Rule 8: assert both the negative (no zero)
+    /// and the positive (returns 1.0 default).
+    #[test]
+    fn compute_step_degenerate_returns_positive_default() {
+        let step = compute_step(5.0, 5.0);
+        assert!(step > 0.0, "degenerate step must be > 0, got {}", step);
+        assert!(step.is_finite(), "degenerate step must be finite, got {}", step);
+        assert_eq!(step, 1.0, "degenerate step must be the 1.0 default");
+    }
+
+    /// Also degenerate: highest < lowest (should not happen post-sort, but guard is strict).
+    #[test]
+    fn compute_step_inverted_returns_positive_default() {
+        let step = compute_step(10.0, 5.0);
+        assert!(step > 0.0, "inverted-range step must be > 0, got {}", step);
+        assert_eq!(step, 1.0, "inverted-range step must be the 1.0 default");
+    }
+
+    /// Small range (0..10): compute_step must target ~50–100 buckets.
+    /// With divisor 75: step = 10/75 ≈ 0.1333.  bucket count ≈ 75 (inside 50–100).
+    #[test]
+    fn compute_step_small_range_bucket_count_in_band() {
+        let lowest = 0.0_f64;
+        let highest = 10.0_f64;
+        let step = compute_step(lowest, highest);
+        assert!(step > 0.0 && step.is_finite(), "step must be positive and finite");
+
+        // Build a synthetic series uniformly covering [0, 10] to count buckets.
+        let mut series: Vec<f64> = (0..=1000).map(|i| lowest + (highest - lowest) * i as f64 / 1000.0).collect();
+        let (buckets, counts) = Equation::<FullyDefined>::compute_histogram(&mut series, &step)
+            .expect("histogram must succeed for non-degenerate series");
+        assert_eq!(buckets.len(), counts.len(), "buckets and counts must be same length");
+        assert!(
+            (50..=100).contains(&buckets.len()),
+            "bucket count {} must be in 50..=100 for range [0, 10]",
+            buckets.len()
+        );
+    }
+
+    /// Large range (0..200_000): compute_step must still target ~50–100 buckets.
+    /// With divisor 75: step = 200_000/75 ≈ 2666.7.
+    #[test]
+    fn compute_step_large_range_bucket_count_in_band() {
+        let lowest = 0.0_f64;
+        let highest = 200_000.0_f64;
+        let step = compute_step(lowest, highest);
+        assert!(step > 0.0 && step.is_finite(), "step must be positive and finite");
+
+        let mut series: Vec<f64> = (0..=1000).map(|i| lowest + (highest - lowest) * i as f64 / 1000.0).collect();
+        let (buckets, counts) = Equation::<FullyDefined>::compute_histogram(&mut series, &step)
+            .expect("histogram must succeed for non-degenerate series");
+        assert_eq!(buckets.len(), counts.len(), "buckets and counts must be same length");
+        assert!(
+            (50..=100).contains(&buckets.len()),
+            "bucket count {} must be in 50..=100 for range [0, 200_000]",
+            buckets.len()
+        );
+    }
+
+    /// Regression: subnormal step at large magnitude must not hang the loop.
+    ///
+    /// A tight cluster at ~1e13 with spread 0.01 gives compute_step a raw step of
+    /// ~1.3e-7, which is smaller than ULP(1e13) ≈ 2.2e-3. Without the no-progress
+    /// guard (and without the min-step clamp in compute_step), the while loop in
+    /// compute_histogram would spin forever. This test asserts: (a) it terminates and
+    /// returns Some, and (b) the result has a small, finite, non-zero bucket count.
+    #[test]
+    fn compute_histogram_subnormal_step_terminates_and_returns_some() {
+        // Series: a tight cluster at ~1e13 where the raw step would be subnormal.
+        let mut series: Vec<f64> = vec![1e13, 1e13 + 0.01];
+        // Compute the step as the engine would for this range.
+        let step = compute_step(series[0], series[1]);
+        assert!(step > 0.0 && step.is_finite(), "step must be positive and finite, got {}", step);
+
+        let result = Equation::<FullyDefined>::compute_histogram(&mut series, &step);
+        assert!(result.is_some(), "histogram must return Some for subnormal-step case");
+        let (buckets, counts) = result.unwrap();
+        assert!(!buckets.is_empty(), "buckets must not be empty");
+        assert!(buckets.len() <= 200, "bucket count {} must be finite and bounded", buckets.len());
+        assert_eq!(buckets.len(), counts.len(), "buckets and counts must have equal length");
+    }
+
+    /// Degenerate model: range(3, 3) — constant output — must return Ok with a
+    /// single-bucket histogram (the E-03b spike) rather than Err.
+    /// Rule 8: assert both the positive (is_ok) and the structural outcome (1 bucket).
+    #[test]
+    fn simulate_constant_output_returns_single_bucket_spike() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "range",
+            lower: 3.,
+            upper: 3.,
+        }];
+        let result = simulate("X", &vars, &100);
+        assert!(
+            result.is_ok(),
+            "constant-output model (range 3,3) must return Ok, got: {:?}",
+            result.err()
+        );
+        let sim = result.unwrap();
+        assert_eq!(
+            sim.buckets.len(),
+            1,
+            "constant output must yield a single bucket, got {} buckets",
+            sim.buckets.len()
+        );
+        assert_eq!(
+            sim.buckets.len(),
+            sim.counts.len(),
+            "buckets and counts must be same length"
         );
     }
 }

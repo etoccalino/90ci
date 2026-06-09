@@ -42,7 +42,7 @@ fn simulate_div_zero_returns_err_not_trap() {
         ("Y", "range", 0.0, 0.0),
     ]);
 
-    let result = simulate("X / Y", vars, 1_000, 0.1);
+    let result = simulate("X / Y", vars, 1_000);
 
     let err_val = result.expect_err("expected Err for divide-by-zero model");
 
@@ -81,7 +81,7 @@ fn simulate_empty_equation_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("X", "uniform", 1.0, 2.0)]);
-    let result = simulate("", vars, 100, 0.1);
+    let result = simulate("", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for empty equation")
@@ -97,7 +97,7 @@ fn simulate_whitespace_equation_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("X", "uniform", 1.0, 2.0)]);
-    let result = simulate("   ", vars, 100, 0.1);
+    let result = simulate("   ", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for whitespace equation")
@@ -113,7 +113,7 @@ fn simulate_empty_vars_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[]);
-    let result = simulate("X + Y", vars, 100, 0.1);
+    let result = simulate("X + Y", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for empty vars")
@@ -132,7 +132,7 @@ fn simulate_duplicate_variable_names_returns_err() {
         ("X", "uniform", 1.0, 2.0),
         ("X", "normal", 3.0, 8.0),
     ]);
-    let result = simulate("X", vars, 100, 0.1);
+    let result = simulate("X", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for duplicate variable name")
@@ -166,7 +166,7 @@ fn simulate_variable_not_used_returns_err() {
         ("X", "uniform", 1.0, 2.0),
         ("Unused", "uniform", 1.0, 2.0),
     ]);
-    let result = simulate("X", vars, 100, 0.1);
+    let result = simulate("X", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for unused variable")
@@ -196,7 +196,7 @@ fn simulate_inverted_bounds_returns_named_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("Revenue", "normal", 10.0, 5.0)]);
-    let result = simulate("Revenue", vars, 100, 0.1);
+    let result = simulate("Revenue", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for inverted bounds")
@@ -226,7 +226,7 @@ fn simulate_bad_shape_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("X", "poisson", 1.0, 2.0)]);
-    let result = simulate("X", vars, 100, 0.1);
+    let result = simulate("X", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for bad shape")
@@ -254,7 +254,7 @@ fn simulate_multiple_missing_tokens_names_all() {
     // Equation "A + B + C" with only "A" supplied → B and C are missing tokens (E-01 plural).
     // Supplying "A" satisfies E-05b (non-empty vars) and E-02 (A is used).
     let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
-    let result = simulate("A + B + C", vars, 100, 0.1);
+    let result = simulate("A + B + C", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for multiple missing tokens")
@@ -286,7 +286,7 @@ fn simulate_missing_token_returns_named_err() {
 
     let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
     // Equation references B which has no variable row.
-    let result = simulate("A + B", vars, 100, 0.1);
+    let result = simulate("A + B", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for missing token")
@@ -310,6 +310,46 @@ fn simulate_missing_token_returns_named_err() {
     );
 }
 
+/// Constant-output single-bucket path: range(3, 3) produces a constant series;
+/// the engine must return Ok with exactly one bucket (the spike), and
+/// `buckets.len() == counts.len()`.  Exercises the WASM boundary's serde
+/// marshalling of the degenerate histogram shape (R5 / Stage 5).
+#[wasm_bindgen_test]
+fn simulate_constant_output_single_bucket_boundary() {
+    use ninety_ci_wasm::simulate;
+
+    #[derive(serde::Deserialize, Debug)]
+    struct SimOutput {
+        ci_low: f64,
+        ci_high: f64,
+        buckets: Vec<f64>,
+        counts: Vec<usize>,
+        samples: usize,
+    }
+
+    let vars = make_vars(&[("X", "range", 3.0, 3.0)]);
+    let result = simulate("X", vars, 100);
+    let js_out = result.expect("constant-output model must return Ok across the WASM boundary");
+
+    let out: SimOutput =
+        serde_wasm_bindgen::from_value(js_out).expect("deserialising SimOutput must not fail");
+
+    assert_eq!(
+        out.buckets.len(),
+        1,
+        "constant output must yield a single bucket, got {} buckets",
+        out.buckets.len()
+    );
+    assert_eq!(
+        out.buckets.len(),
+        out.counts.len(),
+        "buckets and counts must have equal length"
+    );
+    assert!(out.samples > 0, "samples must be positive, got {}", out.samples);
+    // For a constant series the CI bounds should be equal.
+    assert_eq!(out.ci_low, out.ci_high, "ci_low must equal ci_high for constant output");
+}
+
 /// Happy-path round-trip: `simulate` with a simple two-variable normal model
 /// must return `Ok` and a structurally plausible `SimOutput`.
 #[wasm_bindgen_test]
@@ -321,7 +361,7 @@ fn simulate_round_trip_returns_ok_with_plausible_output() {
         ("B", "normal", 0.0, 10.0),
     ]);
 
-    let result = simulate("A + B", vars, 1_000, 1.0);
+    let result = simulate("A + B", vars, 1_000);
 
     let js_out = result.expect("simulate returned Err");
 

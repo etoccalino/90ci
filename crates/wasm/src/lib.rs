@@ -33,12 +33,7 @@ pub fn init() {
 /// `vars` is a JS array of `{ name, shape, lower, upper }`. Returns a JS object
 /// `{ ci_low, ci_high, buckets, counts, samples }`, or throws a string on error.
 #[wasm_bindgen]
-pub fn simulate(
-    equation: &str,
-    vars: JsValue,
-    iterations: usize,
-    step: f64,
-) -> Result<JsValue, JsValue> {
+pub fn simulate(equation: &str, vars: JsValue, iterations: usize) -> Result<JsValue, JsValue> {
     let inputs: Vec<VarInput> =
         serde_wasm_bindgen::from_value(vars).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
@@ -53,7 +48,7 @@ pub fn simulate(
         })
         .collect();
 
-    let s = core_simulate(equation, &descs, &iterations, &step)
+    let s = core_simulate(equation, &descs, &iterations)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let out = SimOutput {
