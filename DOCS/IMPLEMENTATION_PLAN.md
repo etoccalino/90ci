@@ -122,7 +122,7 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 
 ---
 
-## Stage 6 — Distribution semantics & accessibility (§5; §7 a11y)
+## Stage 6 — Distribution semantics & accessibility (§5; §7 a11y) - DONE
 
 **Goal:** honest labels and the a11y minimum bar.
 
