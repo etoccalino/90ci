@@ -104,7 +104,7 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 
 ---
 
-## Stage 5 — The graph (§6)
+## Stage 5 — The graph (§6) - DONE
 
 **Goal:** the hero chart is correct across magnitudes and degenerate inputs.
 
@@ -127,7 +127,6 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 **Goal:** honest labels and the a11y minimum bar.
 
 - **§5 tooltip (exact copy):** "For **normal**, these are the ~5th/95th percentiles. For **uniform** and **range**, they are the full minimum and maximum — the middle 90% falls inside them." Reachable by hover/focus on each variable row; column headers stay "5th"/"95th"; no engine change.
-- **§7 a11y minimums (the four gates):** `aria-label`s on number cells and the formula bar; Run keyboard-operable; `role="alert"` on the error banner (from Stage 4); text/contrast meets WCAG AA against the design tokens.
 
 **Milestone / deliverable:** tooltip present on `normal` and `uniform` rows with no percentile claim for uniform/range; all inputs have accessible names; Run is keyboard-operable.
 
