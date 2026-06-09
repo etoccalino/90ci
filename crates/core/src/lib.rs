@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, bail, Result};
 use lazy_static::lazy_static;
 use rand::distributions::Distribution;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, RngCore};
 use regex::Regex;
 use statrs::distribution::{DiscreteUniform, Normal, Uniform};
 
@@ -117,17 +117,29 @@ impl<'a> Equation<'a, UnderDefined> {
 
     /// Return a series of samples of a random variable. Fail if a variable has type other than
     /// "uniform", "range" or "normal", or a lower bound is greater than an upper bound.
-    fn sample_variable(distribution: &str, lower: &f64, upper: &f64, n: usize) -> Result<Vec<f64>> {
+    ///
+    /// The RNG is injected (`&mut dyn RngCore`) rather than created internally so callers can
+    /// supply a seeded RNG for deterministic tests; production passes `thread_rng()`.
+    fn sample_variable(
+        distribution: &str,
+        lower: &f64,
+        upper: &f64,
+        n: usize,
+        rng: &mut dyn RngCore,
+    ) -> Result<Vec<f64>> {
         let dist: Distro = Distro::new(distribution, *lower, *upper)?;
-        let rng = thread_rng();
-        Ok(rng.sample_iter(&dist).take(n).collect())
+        let mut series = Vec::with_capacity(n);
+        for _ in 0..n {
+            series.push(dist.sample(&mut *rng));
+        }
+        Ok(series)
     }
 
     /// Add a variable description to the equation.
     /// Fails if the variable is not referenced in the equation (E-02),
     /// if the bounds are inverted — strictly lower > upper (E-03),
     /// or if the shape is unsupported (E-11).
-    fn add_variable(&mut self, var: &'a VariableDescription) -> Result<()> {
+    fn add_variable(&mut self, var: &'a VariableDescription, rng: &mut dyn RngCore) -> Result<()> {
         // E-02: variable defined but not present in the equation
         if !self.var_names.contains(var.name) {
             bail!(
@@ -146,7 +158,7 @@ impl<'a> Equation<'a, UnderDefined> {
         }
         self.vars.insert(
             var.name,
-            Equation::sample_variable(var.shape, &var.lower, &var.upper, self.resolution)?,
+            Equation::sample_variable(var.shape, &var.lower, &var.upper, self.resolution, rng)?,
         );
         Ok(())
     }
@@ -155,7 +167,11 @@ impl<'a> Equation<'a, UnderDefined> {
     /// and so the return type will be either a `Equation<UnderDefined>`, which can continue to
     /// receive variable descriptions, or a `Equation<Fullydefined>`, which does not support this
     /// operation.
-    fn add_variables(mut self, vars: &'a [VariableDescription]) -> Result<ValidEquation<'a>> {
+    fn add_variables(
+        mut self,
+        vars: &'a [VariableDescription],
+        rng: &mut dyn RngCore,
+    ) -> Result<ValidEquation<'a>> {
         // E-12: detect duplicate variable names before the HashMap can silently overwrite one.
         // Scan in a single pass; report the first duplicate found.
         let mut seen: HashSet<&str> = HashSet::with_capacity(vars.len());
@@ -169,7 +185,7 @@ impl<'a> Equation<'a, UnderDefined> {
         }
 
         for var in vars.iter() {
-            self.add_variable(var)?;
+            self.add_variable(var, rng)?;
         }
 
         if self.vars.len() < self.var_names.len() {
@@ -352,6 +368,19 @@ pub struct Simulation {
 /// 90% confidence interval and the output histogram.
 /// Use the `VariableDescription` struct to describe each variable.
 pub fn simulate(eq: &str, vars: &[VariableDescription], iterations: &usize) -> Result<Simulation> {
+    simulate_with_rng(eq, vars, iterations, &mut thread_rng())
+}
+
+/// Seeded core of [`simulate`]. The RNG is injected so tests can drive the whole
+/// simulation deterministically (a seeded `StdRng`); production [`simulate`] passes
+/// `thread_rng()`. Keeping the RNG out of the engine internals is what makes the
+/// Monte-Carlo numeric assertions reproducible instead of flaky.
+fn simulate_with_rng(
+    eq: &str,
+    vars: &[VariableDescription],
+    iterations: &usize,
+    rng: &mut dyn RngCore,
+) -> Result<Simulation> {
     // E-05a: empty or blank equation
     if eq.trim().is_empty() {
         bail!("Enter an equation.");
@@ -364,7 +393,7 @@ pub fn simulate(eq: &str, vars: &[VariableDescription], iterations: &usize) -> R
     let initial_model: Equation<UnderDefined> =
         Equation::<UnderDefined>::new(eq, Some(*iterations));
 
-    match initial_model.add_variables(vars)? {
+    match initial_model.add_variables(vars, rng)? {
         ValidEquation::Full(equation) => {
             let evaluated = equation.evaluate()?;
             let samples = evaluated.resolution;
@@ -479,21 +508,31 @@ mod tests {
 
     #[test]
     fn sample_variable_incorrect_type() {
-        assert!(Equation::<UnderDefined>::sample_variable("incorrect", &1., &2., 1).is_err());
+        assert!(
+            Equation::<UnderDefined>::sample_variable("incorrect", &1., &2., 1, &mut thread_rng())
+                .is_err()
+        );
     }
 
     #[test]
     fn sample_variable_incorrect_bounds() {
-        assert!(Equation::<UnderDefined>::sample_variable("incorrect", &2., &1., 1).is_err());
+        assert!(
+            Equation::<UnderDefined>::sample_variable("incorrect", &2., &1., 1, &mut thread_rng())
+                .is_err()
+        );
     }
 
     #[test]
     fn sample_variable_size_correct() {
-        let sample = Equation::<UnderDefined>::sample_variable("uniform", &1., &2., 100).unwrap();
+        let mut rng = thread_rng();
+        let sample =
+            Equation::<UnderDefined>::sample_variable("uniform", &1., &2., 100, &mut rng).unwrap();
         assert_eq!(sample.len(), 100);
-        let sample = Equation::<UnderDefined>::sample_variable("normal", &1., &2., 100).unwrap();
+        let sample =
+            Equation::<UnderDefined>::sample_variable("normal", &1., &2., 100, &mut rng).unwrap();
         assert_eq!(sample.len(), 100);
-        let sample = Equation::<UnderDefined>::sample_variable("range", &1., &2., 100).unwrap();
+        let sample =
+            Equation::<UnderDefined>::sample_variable("range", &1., &2., 100, &mut rng).unwrap();
         assert_eq!(sample.len(), 100);
     }
 
@@ -506,7 +545,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         };
-        assert!(eq.add_variable(&var).is_err());
+        assert!(eq.add_variable(&var, &mut thread_rng()).is_err());
     }
 
     #[test]
@@ -519,6 +558,7 @@ mod tests {
                 lower: 1.,
                 upper: 2.,
             }),
+            &mut thread_rng(),
         )
         .unwrap();
         assert_eq!(eq.vars.len(), 1);
@@ -536,6 +576,7 @@ mod tests {
                     lower: 1.,
                     upper: 2.,
                 }),
+                &mut thread_rng(),
             )
             .is_err());
     }
@@ -551,6 +592,7 @@ mod tests {
                 lower: 100.,
                 upper: 2.,
             }),
+            &mut thread_rng(),
         );
         assert!(result.is_err());
         assert!(
@@ -568,7 +610,7 @@ mod tests {
             lower: 1.,
             upper: 2.,
         }];
-        if let ValidEquation::Full(..) = eq.add_variables(&vars).unwrap() {
+        if let ValidEquation::Full(..) = eq.add_variables(&vars, &mut thread_rng()).unwrap() {
             panic!("wrong type")
         }
     }
@@ -590,9 +632,56 @@ mod tests {
                 upper: 2.,
             },
         ];
-        if let ValidEquation::Partial(..) = eq.add_variables(&vars).unwrap() {
+        if let ValidEquation::Partial(..) = eq.add_variables(&vars, &mut thread_rng()).unwrap() {
             panic!("wrong type")
         }
+    }
+
+    // simulate — deterministic numeric correctness via a seeded RNG ///////////
+
+    /// Seeding the engine's RNG makes the Monte-Carlo 90% CI reproducible, so we can
+    /// assert the recovered interval is tight against the theoretical normal(150, σ)
+    /// 5th/95th percentiles (~100 / ~200) with NO random variance — the assertion is
+    /// deterministic and therefore non-flaky. `simulate_with_rng` runs the full
+    /// pipeline (sample → evaluate → histogram → CI) on a fixed seed.
+    #[test]
+    fn simulate_normal_seeded_recovers_ci_deterministically() {
+        use rand::{rngs::StdRng, SeedableRng};
+        let vars = vec![VariableDescription {
+            name: "VAR",
+            shape: "normal",
+            lower: 100.,
+            upper: 200.,
+        }];
+        let mut rng = StdRng::seed_from_u64(42);
+        let sim = simulate_with_rng("VAR", &vars, &5_000, &mut rng).unwrap();
+        // Deterministic at a fixed seed (no random variance), so the tolerance only
+        // has to cover the histogram estimator's deterministic offset: bucket-snapping
+        // (≤ ~1.33 = one step) plus the CI estimator's small low-side bias. The recovered
+        // interval for this seed is ci_low≈96.9, ci_high≈199.7, so 5.0 holds with margin
+        // and — unlike the old unseeded ±6 — can never flake.
+        assert!(
+            (sim.ci_low - 100.).abs() < 5.0,
+            "seeded ci_low drifted from ~100: {}",
+            sim.ci_low
+        );
+        assert!(
+            (sim.ci_high - 200.).abs() < 5.0,
+            "seeded ci_high drifted from ~200: {}",
+            sim.ci_high
+        );
+        assert!(
+            sim.ci_low < sim.ci_high,
+            "CI must be ordered: {} !< {}",
+            sim.ci_low,
+            sim.ci_high
+        );
+        assert_eq!(sim.samples, 5_000, "sample count must be echoed");
+        assert_eq!(
+            sim.buckets.len(),
+            sim.counts.len(),
+            "buckets and counts must stay parallel"
+        );
     }
 
     // simulate — non-finite output must never panic ///////////////////////////
@@ -1095,7 +1184,8 @@ mod tests {
     #[test]
     fn probe_normal_equal_bounds_is_clean_err() {
         // normal(5, 5): std_dev=0 → statrs returns Err, not a panic.
-        let result = Equation::<UnderDefined>::sample_variable("normal", &5.0, &5.0, 1);
+        let result =
+            Equation::<UnderDefined>::sample_variable("normal", &5.0, &5.0, 1, &mut thread_rng());
         assert!(result.is_err(), "normal(5,5) must be Err (std_dev=0 rejected by statrs)");
         let msg = result.unwrap_err().to_string();
         assert!(!msg.is_empty(), "statrs error message must not be empty");
