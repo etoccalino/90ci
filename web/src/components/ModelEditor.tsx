@@ -1,7 +1,7 @@
 import type { Model, Shape, Variable } from '../model';
 import { SHAPES } from '../model';
 import { Sparkline } from './Sparkline';
-import { hasBlankP5, hasBlankP95 } from '../validation';
+import { hasBlankP5, hasBlankP95, parseBound } from '../validation';
 
 interface Props {
   model: Model;
@@ -35,17 +35,6 @@ export function ModelEditor({ model, onChange, onRun, running, runDisabled = fal
       ],
     });
   const removeVar = (id: string) => patch({ variables: model.variables.filter((v) => v.id !== id) });
-
-  /**
-   * E-04: parse a bound input value.
-   * Empty string → null (honest "blank"), not 0 (silent coercion).
-   * A numeric string → the number.
-   */
-  const parseBound = (raw: string): number | null => {
-    if (raw === '') return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  };
 
   return (
     <div className="col">

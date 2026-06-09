@@ -37,7 +37,11 @@ interface RawResult {
 export function useNinetyCi() {
   const ready = useRef<Promise<unknown> | null>(null);
   const [running, setRunning] = useState(false);
+  // engine/init errors (E-09 and engine runtime failures).
   const [error, setError] = useState<string | null>(null);
+  // client-side validation errors (E-04: blank bound). Separate channel so
+  // ModelEditor cell marking is never triggered by engine/init failures.
+  const [validationError, setValidationError] = useState<string | null>(null);
   // E-09: tracks whether the WASM module loaded successfully.
   // null = init in progress or not yet attempted; true = loaded; false = failed.
   const [engineReady, setEngineReady] = useState<boolean | null>(null);
@@ -64,10 +68,12 @@ export function useNinetyCi() {
       // E-04: validate before touching the engine.
       const validationErr = firstValidationError(model);
       if (validationErr !== null) {
-        setError(validationErr);
+        setValidationError(validationErr);
         throw new Error(validationErr);
       }
 
+      // Clear both error channels at the start of a valid run attempt.
+      setValidationError(null);
       setRunning(true);
       setError(null);
       try {
@@ -98,5 +104,5 @@ export function useNinetyCi() {
     [ensureReady],
   );
 
-  return { run, running, error, engineReady };
+  return { run, running, error, validationError, engineReady };
 }

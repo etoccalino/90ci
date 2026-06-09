@@ -17,7 +17,7 @@ const INITIAL_MODEL: Model = {
 export default function App() {
   const [model, setModel] = useState<Model>(INITIAL_MODEL);
   const [result, setResult] = useState<SimResult | null>(null);
-  const { run, running, error, engineReady } = useNinetyCi();
+  const { run, running, error, validationError, engineReady } = useNinetyCi();
 
   const onRun = async () => {
     try {
@@ -43,9 +43,9 @@ export default function App() {
           onRun={onRun}
           running={running}
           runDisabled={runDisabled}
-          validationError={error}
+          validationError={validationError}
         />
-        <ResultPanel result={result} error={error} />
+        <ResultPanel result={result} error={error ?? validationError} />
       </div>
     </div>
   );

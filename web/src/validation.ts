@@ -8,6 +8,17 @@
 
 import type { Variable, Model } from './model';
 
+/**
+ * Parse a bound input string to a number or null.
+ * Empty string → null (honest "blank"), not 0 (silent coercion).
+ * A non-finite string → null.
+ */
+export function parseBound(raw: string): number | null {
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Returns true when a p5 value is absent or not a finite number. */
 export function hasBlankP5(v: Variable): boolean {
   return v.p5 === null || v.p5 === undefined || !Number.isFinite(v.p5);
