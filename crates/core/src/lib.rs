@@ -129,10 +129,25 @@ impl<'a> Equation<'a, UnderDefined> {
     }
 
     /// Add a variable description to the equation.
-    /// Fails if the variable passed is not present in the equation.
+    /// Fails if the variable is not referenced in the equation (E-02),
+    /// if the bounds are inverted — strictly lower > upper (E-03),
+    /// or if the shape is unsupported (E-11).
     fn add_variable(&mut self, var: &'a VariableDescription) -> Result<()> {
+        // E-02: variable defined but not present in the equation
         if !self.var_names.contains(var.name) {
-            bail!("Variable {} not mentioned in the equation", var.name);
+            bail!(
+                "`{}` is defined but not used — use it or remove the row.",
+                var.name
+            );
+        }
+        // E-03: inverted bounds (strict: lower == upper is valid for `range`)
+        if var.lower > var.upper {
+            bail!(
+                "`{}`: 5th ({}) must be below 95th ({}).",
+                var.name,
+                var.lower,
+                var.upper
+            );
         }
         self.vars.insert(
             var.name,
@@ -146,6 +161,18 @@ impl<'a> Equation<'a, UnderDefined> {
     /// receive variable descriptions, or a `Equation<Fullydefined>`, which does not support this
     /// operation.
     fn add_variables(mut self, vars: &'a [VariableDescription]) -> Result<ValidEquation<'a>> {
+        // E-12: detect duplicate variable names before the HashMap can silently overwrite one.
+        // Scan in a single pass; report the first duplicate found.
+        let mut seen: HashSet<&str> = HashSet::with_capacity(vars.len());
+        for var in vars.iter() {
+            if !seen.insert(var.name) {
+                bail!(
+                    "Two variables are named `{}` — names must be unique.",
+                    var.name
+                );
+            }
+        }
+
         for var in vars.iter() {
             self.add_variable(var)?;
         }
@@ -317,11 +344,17 @@ pub fn simulate(
     iterations: &usize,
     step: &f64,
 ) -> Result<Simulation> {
-    if vars.is_empty() {
-        bail!("No variables for the equation");
+    // E-05a: empty or blank equation
+    if eq.trim().is_empty() {
+        bail!("Enter an equation.");
     }
+    // E-05b: no variable rows provided
+    if vars.is_empty() {
+        bail!("Add at least one variable.");
+    }
+
     let initial_model: Equation<UnderDefined> =
-        Equation::<UnderDefined>::new(eq, Some(*iterations), Some(*step)); // I have to explicitly annotate Equation::<UnderDefined> !?
+        Equation::<UnderDefined>::new(eq, Some(*iterations), Some(*step));
 
     match initial_model.add_variables(vars)? {
         ValidEquation::Full(equation) => {
@@ -339,7 +372,36 @@ pub fn simulate(
                 samples,
             })
         }
-        _ => bail!("Variables missing"),
+        ValidEquation::Partial(()) => {
+            // E-01: find the tokens in the equation that have no corresponding variable row.
+            // `var_names` was populated from the equation; we rebuild a temporary equation
+            // just to get the set, then diff against the supplied names.
+            let eq_tokens = Equation::<UnderDefined>::extract_variable_names(eq);
+            let supplied: HashSet<&str> = vars.iter().map(|v| v.name).collect();
+            let mut missing: Vec<&str> = eq_tokens
+                .into_iter()
+                .filter(|t| !supplied.contains(t))
+                .collect();
+            // Deduplicate while preserving first-seen order.
+            {
+                let mut seen = HashSet::with_capacity(missing.len());
+                missing.retain(|t| seen.insert(*t));
+            }
+
+            if missing.len() == 1 {
+                bail!(
+                    "`{}` is used in the equation but not defined — add a variable row for it (or remove it).",
+                    missing[0]
+                );
+            } else {
+                // Multiple missing tokens: list them all, comma-separated, each backtick-quoted.
+                let list: Vec<String> = missing.iter().map(|t| format!("`{}`", t)).collect();
+                bail!(
+                    "{} are used in the equation but not defined — add variable rows for them (or remove them).",
+                    list.join(", ")
+                );
+            }
+        }
     }
 }
 
@@ -660,6 +722,240 @@ mod tests {
         assert_eq!(freqs, vec![1, 1, 0, 1]);
     }
 
+    // simulate — validation & honest error messages (Stage 3) //////////////////
+    //
+    // Validation precedence (one violation per run):
+    //   empty-equation (E-05a)
+    //   → empty-vars (E-05b)
+    //   → duplicate-names (E-12)
+    //   → per-variable: not-used (E-02), then inverted-bounds (E-03), then bad-shape (E-11)
+    //   → missing-token (E-01)
+
+    // E-05a: empty equation string
+    #[test]
+    fn simulate_empty_equation_returns_err() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        let result = simulate("", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for empty equation, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Enter an equation.",
+            "wrong error message for E-05a"
+        );
+    }
+
+    // E-05a: whitespace-only equation (same guard as empty)
+    #[test]
+    fn simulate_whitespace_equation_returns_err() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        let result = simulate("   ", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for whitespace equation, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Enter an equation.",
+            "wrong error message for E-05a whitespace"
+        );
+    }
+
+    // E-05b: zero variables
+    #[test]
+    fn simulate_empty_vars_returns_err() {
+        let result = simulate("X + Y", &[], &100, &0.1);
+        assert!(result.is_err(), "expected Err for empty vars, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Add at least one variable.",
+            "wrong error message for E-05b"
+        );
+    }
+
+    // E-05 ordering: empty-equation is checked before empty-vars
+    #[test]
+    fn simulate_empty_equation_takes_precedence_over_empty_vars() {
+        let result = simulate("", &[], &100, &0.1);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Enter an equation.",
+            "empty-equation must be reported before empty-vars"
+        );
+    }
+
+    // E-12: duplicate variable names must be detected before HashMap merge
+    #[test]
+    fn simulate_duplicate_variable_names_returns_err() {
+        let vars = vec![
+            VariableDescription {
+                name: "X",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+            VariableDescription {
+                name: "X",
+                shape: "normal",
+                lower: 3.,
+                upper: 8.,
+            },
+        ];
+        let result = simulate("X", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for duplicate variable name, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Two variables are named `X` — names must be unique.",
+            "wrong error message for E-12"
+        );
+    }
+
+    // E-02: variable defined but not used in equation
+    #[test]
+    fn simulate_variable_not_used_returns_err() {
+        let vars = vec![
+            VariableDescription {
+                name: "X",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+            VariableDescription {
+                name: "Unused",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+        ];
+        let result = simulate("X", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for unused variable, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "`Unused` is defined but not used — use it or remove the row.",
+            "wrong error message for E-02"
+        );
+    }
+
+    // E-03: inverted bounds (lower strictly > upper) named in error message
+    #[test]
+    fn simulate_inverted_bounds_returns_named_err() {
+        let vars = vec![VariableDescription {
+            name: "Revenue",
+            shape: "normal",
+            lower: 10.,
+            upper: 5.,
+        }];
+        let result = simulate("Revenue", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for inverted bounds, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "`Revenue`: 5th (10) must be below 95th (5).",
+            "wrong error message for E-03"
+        );
+    }
+
+    // E-03: lower == upper for `range` must remain valid (existing E-07 tests depend on this)
+    #[test]
+    fn simulate_range_equal_bounds_is_valid() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "range",
+            lower: 3.,
+            upper: 3.,
+        }];
+        // X is always 3; model is constant, should produce Ok (not inverted-bounds error)
+        let result = simulate("X", &vars, &100, &0.1);
+        // We don't assert Ok here because a constant series may produce a degenerate histogram;
+        // the key assertion is that it does NOT return the E-03 inverted-bounds message.
+        if let Err(e) = &result {
+            assert_ne!(
+                e.to_string(),
+                "`X`: 5th (3) must be below 95th (3).",
+                "equal bounds for range must not be treated as inverted (E-03)"
+            );
+        }
+    }
+
+    // E-11: unsupported distribution shape — exact message must be preserved
+    #[test]
+    fn simulate_bad_shape_returns_err_with_exact_message() {
+        let vars = vec![VariableDescription {
+            name: "X",
+            shape: "poisson",
+            lower: 1.,
+            upper: 2.,
+        }];
+        let result = simulate("X", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for bad shape, got Ok");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Unsupported distribution. Use either 'normal', 'range' or 'uniform'.",
+            "wrong error message for E-11"
+        );
+    }
+
+    // E-01: token in equation with no corresponding variable row
+    #[test]
+    fn simulate_missing_token_returns_named_err() {
+        let vars = vec![VariableDescription {
+            name: "A",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        // Equation references B which has no variable row
+        let result = simulate("A + B", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for missing token, got Ok");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("`B`"),
+            "error message must name the missing token, got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("is used in the equation but not defined"),
+            "error message must contain corrective phrasing, got: {}",
+            msg
+        );
+        assert_eq!(
+            msg,
+            "`B` is used in the equation but not defined — add a variable row for it (or remove it).",
+            "wrong error message for E-01 (single missing token)"
+        );
+    }
+
+    // E-01: multiple missing tokens — all must appear in the error
+    #[test]
+    fn simulate_multiple_missing_tokens_names_all() {
+        let vars = vec![VariableDescription {
+            name: "A",
+            shape: "uniform",
+            lower: 1.,
+            upper: 2.,
+        }];
+        let result = simulate("A + B + C", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for multiple missing tokens");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("`B`") || msg.contains("`C`"),
+            "error message must name at least one missing token, got: {}",
+            msg
+        );
+        // Both must appear somewhere in the message
+        assert!(
+            msg.contains('B') && msg.contains('C'),
+            "error message must name all missing tokens (B and C), got: {}",
+            msg
+        );
+    }
+
     // Equation<Evaluated> ////////////////////////////////////////////////////
 
     #[test]
@@ -714,5 +1010,43 @@ mod tests {
         let (low, up) = eq.ninety_ci().unwrap();
         assert_eq!(low, -2.);
         assert_eq!(up, 4.);
+    }
+
+    // Probe: degenerate equal-bound cases for uniform and normal.
+    // These are NOT E-03 (inverted bounds); lower == upper is a degenerate (zero-width)
+    // input. statrs behaviour differs:
+    //   - uniform(5, 5): statrs ACCEPTS it (Uniform::new(5.0,5.0) is Ok); every sample
+    //     is exactly 5.0. A 1000-sample constant series has len >= 2 but all values equal,
+    //     so compute_histogram produces a single bucket — the CI computation still works,
+    //     giving ci_low == ci_high == 5.0. simulate returns Ok. No panic.
+    //   - normal(5, 5): lower==upper means std_dev=(5-5)/3.29=0.0; statrs Normal::new(5.0,0.0)
+    //     returns Err("Bad distribution parameters") — a clean Err, never a panic.
+    //
+    // Both are clean (no panic); the normal case message is the terse statrs text, which
+    // could be improved in a future stage but is out of E-03 scope (as noted in the spec).
+
+    #[test]
+    fn probe_uniform_equal_bounds_simulate_does_not_panic() {
+        // uniform(5, 5): statrs accepts it; simulate returns Ok (constant output, valid CI).
+        let vars = vec![VariableDescription { name: "X", shape: "uniform", lower: 5., upper: 5. }];
+        let result = simulate("X", &vars, &100, &0.1);
+        // Must not panic; we don't enforce Ok vs Err here — just document the behaviour.
+        let _ = result; // Ok(ci_low=5, ci_high=5) expected but not required by this probe
+    }
+
+    #[test]
+    fn probe_normal_equal_bounds_is_clean_err() {
+        // normal(5, 5): std_dev=0 → statrs returns Err, not a panic.
+        let result = Equation::<UnderDefined>::sample_variable("normal", &5.0, &5.0, 1);
+        assert!(result.is_err(), "normal(5,5) must be Err (std_dev=0 rejected by statrs)");
+        let msg = result.unwrap_err().to_string();
+        assert!(!msg.is_empty(), "statrs error message must not be empty");
+        // Document the actual terse message from statrs (not our E-03 message).
+        // This message is poor but is out of E-03 scope per the spec.
+        assert!(
+            !msg.contains("must be below"),
+            "normal equal-bounds must NOT produce E-03 message, got: {}",
+            msg
+        );
     }
 }
