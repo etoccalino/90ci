@@ -9,15 +9,6 @@ import { firstValidationError } from '../validation';
 // Hard-wired sample count per the PRD (§1: fix samples at 5,000).
 const SAMPLES = 5_000;
 
-// Bucket size handed to the engine.
-//
-// KNOWN ISSUE: the engine treats `step` as an ABSOLUTE bucket width, so the number
-// of histogram buckets is roughly (output range / step). For large-magnitude
-// outputs (e.g. ~200,000) a small step like 0.1 would allocate millions of buckets.
-// 1.0 is a safe placeholder for small models; before shipping, scale this to the
-// output magnitude (or add a UI control / let the engine pick). See
-// DOCS/architecture/wasm-module.md.
-const DEFAULT_STEP = 1;
 
 interface VarPayload {
   name: string;
@@ -85,7 +76,7 @@ export function useNinetyCi() {
           lower: v.p5 as number,
           upper: v.p95 as number,
         }));
-        const raw = wasmSimulate(model.equation, vars, SAMPLES, DEFAULT_STEP) as RawResult;
+        const raw = wasmSimulate(model.equation, vars, SAMPLES) as RawResult;
         return {
           ciLow: raw.ci_low,
           ciHigh: raw.ci_high,

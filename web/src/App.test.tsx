@@ -55,7 +55,6 @@ describe('Run — hard-wired sample count', () => {
       expect.any(String),   // equation
       expect.any(Array),    // vars
       5000,                 // SAMPLES — the invariant under test
-      expect.any(Number),   // step
     );
   });
 });

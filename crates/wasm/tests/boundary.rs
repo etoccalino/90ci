@@ -42,7 +42,7 @@ fn simulate_div_zero_returns_err_not_trap() {
         ("Y", "range", 0.0, 0.0),
     ]);
 
-    let result = simulate("X / Y", vars, 1_000, 0.1);
+    let result = simulate("X / Y", vars, 1_000);
 
     let err_val = result.expect_err("expected Err for divide-by-zero model");
 
@@ -81,7 +81,7 @@ fn simulate_empty_equation_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("X", "uniform", 1.0, 2.0)]);
-    let result = simulate("", vars, 100, 0.1);
+    let result = simulate("", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for empty equation")
@@ -97,7 +97,7 @@ fn simulate_whitespace_equation_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("X", "uniform", 1.0, 2.0)]);
-    let result = simulate("   ", vars, 100, 0.1);
+    let result = simulate("   ", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for whitespace equation")
@@ -113,7 +113,7 @@ fn simulate_empty_vars_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[]);
-    let result = simulate("X + Y", vars, 100, 0.1);
+    let result = simulate("X + Y", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for empty vars")
@@ -132,7 +132,7 @@ fn simulate_duplicate_variable_names_returns_err() {
         ("X", "uniform", 1.0, 2.0),
         ("X", "normal", 3.0, 8.0),
     ]);
-    let result = simulate("X", vars, 100, 0.1);
+    let result = simulate("X", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for duplicate variable name")
@@ -166,7 +166,7 @@ fn simulate_variable_not_used_returns_err() {
         ("X", "uniform", 1.0, 2.0),
         ("Unused", "uniform", 1.0, 2.0),
     ]);
-    let result = simulate("X", vars, 100, 0.1);
+    let result = simulate("X", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for unused variable")
@@ -196,7 +196,7 @@ fn simulate_inverted_bounds_returns_named_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("Revenue", "normal", 10.0, 5.0)]);
-    let result = simulate("Revenue", vars, 100, 0.1);
+    let result = simulate("Revenue", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for inverted bounds")
@@ -226,7 +226,7 @@ fn simulate_bad_shape_returns_err() {
     use ninety_ci_wasm::simulate;
 
     let vars = make_vars(&[("X", "poisson", 1.0, 2.0)]);
-    let result = simulate("X", vars, 100, 0.1);
+    let result = simulate("X", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for bad shape")
@@ -254,7 +254,7 @@ fn simulate_multiple_missing_tokens_names_all() {
     // Equation "A + B + C" with only "A" supplied → B and C are missing tokens (E-01 plural).
     // Supplying "A" satisfies E-05b (non-empty vars) and E-02 (A is used).
     let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
-    let result = simulate("A + B + C", vars, 100, 0.1);
+    let result = simulate("A + B + C", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for multiple missing tokens")
@@ -286,7 +286,7 @@ fn simulate_missing_token_returns_named_err() {
 
     let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
     // Equation references B which has no variable row.
-    let result = simulate("A + B", vars, 100, 0.1);
+    let result = simulate("A + B", vars, 100);
 
     let err_str = result
         .expect_err("expected Err for missing token")
@@ -321,7 +321,7 @@ fn simulate_round_trip_returns_ok_with_plausible_output() {
         ("B", "normal", 0.0, 10.0),
     ]);
 
-    let result = simulate("A + B", vars, 1_000, 1.0);
+    let result = simulate("A + B", vars, 1_000);
 
     let js_out = result.expect("simulate returned Err");
 
