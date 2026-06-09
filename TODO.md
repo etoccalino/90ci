@@ -1,3 +1,2 @@
-- deploy to no-cost hosting (github.io?)
 - extra features
     - export results (how?)
