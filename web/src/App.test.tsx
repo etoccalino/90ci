@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 
@@ -11,7 +11,7 @@ vi.mock('./wasm/ninety_ci_wasm', () => ({
 }));
 
 describe('App smoke test', () => {
-  it('renders the prefilled model name and a Run button', () => {
+  it('renders the prefilled model name and a Run button', async () => {
     render(<App />);
 
     // The prefilled model name appears in the TopBar breadcrumb.
@@ -19,10 +19,13 @@ describe('App smoke test', () => {
     // The title input carries the same value.
     expect(screen.getByDisplayValue('Exchange exposure')).toBeInTheDocument();
 
-    // The Run button is present and enabled on initial render.
-    const runButton = screen.getByRole('button', { name: /run/i });
-    expect(runButton).toBeInTheDocument();
-    expect(runButton).not.toBeDisabled();
+    // The Run button is present and enabled. Wait for the async init to resolve
+    // (the hook sets engineReady on mount) so no act() warning is emitted.
+    await waitFor(() => {
+      const runButton = screen.getByRole('button', { name: /run/i });
+      expect(runButton).toBeInTheDocument();
+      expect(runButton).not.toBeDisabled();
+    });
   });
 });
 

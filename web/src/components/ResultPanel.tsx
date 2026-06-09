@@ -14,7 +14,7 @@ export function ResultPanel({ result, error }: Props) {
         <span className="ico">◉</span> Output distribution
       </div>
 
-      {error && <div className="error">⚠ {error}</div>}
+      {error && <div className="error" role="alert">⚠ {error}</div>}
       {!result && !error && (
         <div className="empty">
           Press <b>Run</b> to simulate the model.
