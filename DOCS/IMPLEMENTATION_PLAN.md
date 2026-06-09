@@ -136,7 +136,7 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 
 ---
 
-## Stage 7 — Non-functional gates & release (§7 perf/build; §9)
+## Stage 7 — Non-functional gates & release (§7 perf/build; §9) - DONE
 
 **Goal:** the final gates — performance, clean static build, end-to-end release smoke.
 
