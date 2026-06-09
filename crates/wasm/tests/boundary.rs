@@ -56,6 +56,11 @@ fn simulate_div_zero_returns_err_not_trap() {
         !err_str.contains("unreachable"),
         "error must not be a wasm trap, got: {err_str}"
     );
+    assert_eq!(
+        err_str,
+        "The equation produced an undefined result (e.g. division by zero) — check the formula/bounds.",
+        "error string must match the exact engine diagnostic"
+    );
 }
 
 /// Happy-path round-trip: `simulate` with a simple two-variable normal model
