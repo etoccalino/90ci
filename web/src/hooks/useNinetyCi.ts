@@ -4,6 +4,7 @@ import type { Model, SimResult } from '../model';
 // Run `pnpm build:wasm` before `vite` (the dev/build scripts already do this). Until
 // then this import (and its types) won't resolve — that's expected.
 import init, { simulate as wasmSimulate } from '../wasm/ninety_ci_wasm';
+import { firstValidationError } from '../validation';
 
 // Hard-wired sample count per the PRD (§1: fix samples at 5,000).
 const SAMPLES = 5_000;
@@ -36,7 +37,14 @@ interface RawResult {
 export function useNinetyCi() {
   const ready = useRef<Promise<unknown> | null>(null);
   const [running, setRunning] = useState(false);
+  // engine/init errors (E-09 and engine runtime failures).
   const [error, setError] = useState<string | null>(null);
+  // client-side validation errors (E-04: blank bound). Separate channel so
+  // ModelEditor cell marking is never triggered by engine/init failures.
+  const [validationError, setValidationError] = useState<string | null>(null);
+  // E-09: tracks whether the WASM module loaded successfully.
+  // null = init in progress or not yet attempted; true = loaded; false = failed.
+  const [engineReady, setEngineReady] = useState<boolean | null>(null);
 
   const ensureReady = useCallback(() => {
     if (!ready.current) ready.current = init();
@@ -44,12 +52,28 @@ export function useNinetyCi() {
   }, []);
 
   // Kick off module initialization on mount so the first Run is fast.
+  // E-09: capture init failures and expose them through the hook.
   useEffect(() => {
-    ensureReady();
+    ensureReady()
+      .then(() => setEngineReady(true))
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        setEngineReady(false);
+        setError(`Couldn't load the calculator engine — reload the page. (${msg})`);
+      });
   }, [ensureReady]);
 
   const run = useCallback(
     async (model: Model): Promise<SimResult> => {
+      // E-04: validate before touching the engine.
+      const validationErr = firstValidationError(model);
+      if (validationErr !== null) {
+        setValidationError(validationErr);
+        throw new Error(validationErr);
+      }
+
+      // Clear both error channels at the start of a valid run attempt.
+      setValidationError(null);
       setRunning(true);
       setError(null);
       try {
@@ -57,8 +81,9 @@ export function useNinetyCi() {
         const vars: VarPayload[] = model.variables.map((v) => ({
           name: v.name,
           shape: v.shape,
-          lower: v.p5,
-          upper: v.p95,
+          // p5/p95 are guaranteed non-null here because firstValidationError passed.
+          lower: v.p5 as number,
+          upper: v.p95 as number,
         }));
         const raw = wasmSimulate(model.equation, vars, SAMPLES, DEFAULT_STEP) as RawResult;
         return {
@@ -79,5 +104,5 @@ export function useNinetyCi() {
     [ensureReady],
   );
 
-  return { run, running, error };
+  return { run, running, error, validationError, engineReady };
 }

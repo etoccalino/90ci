@@ -87,7 +87,7 @@ Present and working: `cargo 1.96`, `wasm-pack 0.15`, `node v22.22`, `pnpm 11.5`,
 
 ---
 
-## Stage 4 — Front-end validation & error UX (§3; E-04, E-09, E-10)
+## Stage 4 — Front-end validation & error UX (§3; E-04, E-09, E-10) - DONE
 
 **Goal:** the user sees precise, non-silent errors in the UI; no stale chart beside an error; no blank screen on init failure.
 

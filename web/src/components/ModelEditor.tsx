@@ -1,15 +1,23 @@
 import type { Model, Shape, Variable } from '../model';
 import { SHAPES } from '../model';
 import { Sparkline } from './Sparkline';
+import { hasBlankP5, hasBlankP95, parseBound } from '../validation';
 
 interface Props {
   model: Model;
   onChange: (m: Model) => void;
   onRun: () => void;
   running: boolean;
+  /** True when the engine failed to load (E-09). Only case where Run is disabled. */
+  runDisabled?: boolean;
+  /**
+   * The current error string from the hook (null = no error). Used to decide
+   * which cells to mark invalid after a failed Run.
+   */
+  validationError?: string | null;
 }
 
-export function ModelEditor({ model, onChange, onRun, running }: Props) {
+export function ModelEditor({ model, onChange, onRun, running, runDisabled = false, validationError = null }: Props) {
   const patch = (p: Partial<Model>) => onChange({ ...model, ...p });
   const patchVar = (id: string, p: Partial<Variable>) =>
     patch({ variables: model.variables.map((v) => (v.id === id ? { ...v, ...p } : v)) });
@@ -53,7 +61,7 @@ export function ModelEditor({ model, onChange, onRun, running }: Props) {
           spellCheck={false}
           onChange={(e) => patch({ equation: e.target.value })}
         />
-        <button className="runbtn" onClick={onRun} disabled={running}>
+        <button className="runbtn" onClick={onRun} disabled={runDisabled}>
           <span className="tri">▶</span> {running ? 'Running…' : 'Run'}
         </button>
       </div>
@@ -69,53 +77,61 @@ export function ModelEditor({ model, onChange, onRun, running }: Props) {
           <div className="cell">95th</div>
           <div className="cell">Shape</div>
         </div>
-        {model.variables.map((v) => (
-          <div className="dbrow" key={v.id}>
-            <div className="cell title-cell">
-              <input
-                className="vname"
-                value={v.name}
-                spellCheck={false}
-                onChange={(e) => patchVar(v.id, { name: e.target.value })}
-              />
+        {model.variables.map((v) => {
+          // E-04: mark cells invalid when a validation error is present AND the
+          // cell is blank. Only mark after a failed Run attempt (validationError
+          // is non-null), not proactively on every keystroke.
+          const p5Invalid = validationError !== null && hasBlankP5(v);
+          const p95Invalid = validationError !== null && hasBlankP95(v);
+
+          return (
+            <div className="dbrow" key={v.id}>
+              <div className="cell title-cell">
+                <input
+                  className="vname"
+                  value={v.name}
+                  spellCheck={false}
+                  onChange={(e) => patchVar(v.id, { name: e.target.value })}
+                />
+              </div>
+              <div className="cell">
+                <select
+                  className={`tag ${v.shape}`}
+                  value={v.shape}
+                  onChange={(e) => patchVar(v.id, { shape: e.target.value as Shape })}
+                >
+                  {SHAPES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="cell">
+                <input
+                  className={`numcell num-input${p5Invalid ? ' num-input--invalid' : ''}`}
+                  type="number"
+                  value={v.p5 === null ? '' : v.p5}
+                  onChange={(e) => patchVar(v.id, { p5: parseBound(e.target.value) })}
+                />
+              </div>
+              <div className="cell">
+                <input
+                  className={`numcell num-input${p95Invalid ? ' num-input--invalid' : ''}`}
+                  type="number"
+                  value={v.p95 === null ? '' : v.p95}
+                  onChange={(e) => patchVar(v.id, { p95: parseBound(e.target.value) })}
+                />
+              </div>
+              <div className="cell spark-cell">
+                <Sparkline shape={v.shape} />
+                <button className="rm" title="Remove variable" onClick={() => removeVar(v.id)}>
+                  ×
+                </button>
+              </div>
             </div>
-            <div className="cell">
-              <select
-                className={`tag ${v.shape}`}
-                value={v.shape}
-                onChange={(e) => patchVar(v.id, { shape: e.target.value as Shape })}
-              >
-                {SHAPES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="cell">
-              <input
-                className="numcell num-input"
-                type="number"
-                value={v.p5}
-                onChange={(e) => patchVar(v.id, { p5: Number(e.target.value) })}
-              />
-            </div>
-            <div className="cell">
-              <input
-                className="numcell num-input"
-                type="number"
-                value={v.p95}
-                onChange={(e) => patchVar(v.id, { p95: Number(e.target.value) })}
-              />
-            </div>
-            <div className="cell spark-cell">
-              <Sparkline shape={v.shape} />
-              <button className="rm" title="Remove variable" onClick={() => removeVar(v.id)}>
-                ×
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         <button className="newrow" onClick={addVar}>
           <span className="p">+</span> New variable
         </button>
