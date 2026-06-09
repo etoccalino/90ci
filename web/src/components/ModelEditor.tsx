@@ -1,5 +1,5 @@
 import type { Model, Shape, Variable } from '../model';
-import { SAMPLE_OPTIONS, SHAPES } from '../model';
+import { SHAPES } from '../model';
 import { Sparkline } from './Sparkline';
 
 interface Props {
@@ -122,16 +122,6 @@ export function ModelEditor({ model, onChange, onRun, running }: Props) {
       </div>
 
       <div className="hint">
-        <label>
-          Samples{' '}
-          <select value={model.samples} onChange={(e) => patch({ samples: Number(e.target.value) })}>
-            {SAMPLE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n.toLocaleString('en-US')}
-              </option>
-            ))}
-          </select>
-        </label>
         <span className="hint-note">· 5th / 95th are the percentile bounds for each variable.</span>
       </div>
     </div>

@@ -5,6 +5,9 @@ import type { Model, SimResult } from '../model';
 // then this import (and its types) won't resolve — that's expected.
 import init, { simulate as wasmSimulate } from '../wasm/ninety_ci_wasm';
 
+// Hard-wired sample count per the PRD (§1: fix samples at 5,000).
+const SAMPLES = 5_000;
+
 // Bucket size handed to the engine.
 //
 // KNOWN ISSUE: the engine treats `step` as an ABSOLUTE bucket width, so the number
@@ -57,7 +60,7 @@ export function useNinetyCi() {
           lower: v.p5,
           upper: v.p95,
         }));
-        const raw = wasmSimulate(model.equation, vars, model.samples, DEFAULT_STEP) as RawResult;
+        const raw = wasmSimulate(model.equation, vars, SAMPLES, DEFAULT_STEP) as RawResult;
         return {
           ciLow: raw.ci_low,
           ciHigh: raw.ci_high,
