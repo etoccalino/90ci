@@ -90,10 +90,24 @@ This is where the test coverage currently lives: unit tests in `src/lib.rs` plus
 cargo test -p ninety-ci-wasm                       # native unit tests
 wasm-pack test --headless --chrome crates/wasm     # tests across the wasm boundary
 ```
-No tests live here yet — the crate is a thin marshalling layer over `core`. The commands above are how to run them once added. See [Setting up — Headless browser](#headless-browser-for-wasm-boundary-tests) for the `chromedriver` prerequisite.
+The boundary tests live in `crates/wasm/tests/boundary.rs` (a `simulate` round-trip plus one assertion per `§4` engine-error row); the native unit slot is empty since the crate is a thin marshalling layer over `core`. See [Setting up — Headless browser](#headless-browser-for-wasm-boundary-tests) for the `chromedriver` prerequisite.
 
 ### Web app (`web`)
-No test runner is wired up yet (planned: Vitest). Once added:
+
+Unit and component tests run under **Vitest** (jsdom + Testing Library):
 ```sh
 pnpm -C web test
 ```
+
+#### End-to-end release smoke (Playwright)
+
+The release smoke builds the static bundle, serves it with `vite preview`, and drives one real simulation through the WASM engine in a headless browser. It needs Playwright's own Chromium, installed once:
+```sh
+pnpm -C web install                              # installs @playwright/test (pinned to match the cached browser)
+pnpm -C web exec playwright install chromium     # downloads Playwright's Chromium
+```
+Then run it:
+```sh
+pnpm -C web e2e
+```
+The `e2e` script is `pnpm build && playwright test`, so it always rebuilds `web/dist/` first and validates the freshly built bundle (never a stale one). The spec lives in `web/e2e/release-smoke.spec.ts` and the config in `web/playwright.config.ts` (Chromium only, `vite preview` on port 4173). It is intentionally excluded from the Vitest run, so `pnpm -C web test` and `pnpm -C web e2e` stay separate.
