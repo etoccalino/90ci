@@ -310,6 +310,46 @@ fn simulate_missing_token_returns_named_err() {
     );
 }
 
+/// Constant-output single-bucket path: range(3, 3) produces a constant series;
+/// the engine must return Ok with exactly one bucket (the spike), and
+/// `buckets.len() == counts.len()`.  Exercises the WASM boundary's serde
+/// marshalling of the degenerate histogram shape (R5 / Stage 5).
+#[wasm_bindgen_test]
+fn simulate_constant_output_single_bucket_boundary() {
+    use ninety_ci_wasm::simulate;
+
+    #[derive(serde::Deserialize, Debug)]
+    struct SimOutput {
+        ci_low: f64,
+        ci_high: f64,
+        buckets: Vec<f64>,
+        counts: Vec<usize>,
+        samples: usize,
+    }
+
+    let vars = make_vars(&[("X", "range", 3.0, 3.0)]);
+    let result = simulate("X", vars, 100);
+    let js_out = result.expect("constant-output model must return Ok across the WASM boundary");
+
+    let out: SimOutput =
+        serde_wasm_bindgen::from_value(js_out).expect("deserialising SimOutput must not fail");
+
+    assert_eq!(
+        out.buckets.len(),
+        1,
+        "constant output must yield a single bucket, got {} buckets",
+        out.buckets.len()
+    );
+    assert_eq!(
+        out.buckets.len(),
+        out.counts.len(),
+        "buckets and counts must have equal length"
+    );
+    assert!(out.samples > 0, "samples must be positive, got {}", out.samples);
+    // For a constant series the CI bounds should be equal.
+    assert_eq!(out.ci_low, out.ci_high, "ci_low must equal ci_high for constant output");
+}
+
 /// Happy-path round-trip: `simulate` with a simple two-variable normal model
 /// must return `Ok` and a structurally plausible `SimOutput`.
 #[wasm_bindgen_test]

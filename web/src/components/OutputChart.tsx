@@ -20,7 +20,7 @@ export function OutputChart({ result }: { result: SimResult }) {
     const val = buckets[0] ?? ciLow;
     const mid = W / 2;
     const base = H - 4;
-    const top = 12;
+    const top = 20;
     return (
       <div className="chartwrap">
         <svg
@@ -66,7 +66,7 @@ export function OutputChart({ result }: { result: SimResult }) {
   const span = hi - lo || 1;
   const maxCount = Math.max(...counts, 1);
   const base = H - 4;
-  const top = 12;
+  const top = 20;
 
   const x = (val: number) => ((val - lo) / span) * W;
   const y = (c: number) => base - (c / maxCount) * (base - top);
@@ -97,7 +97,7 @@ export function OutputChart({ result }: { result: SimResult }) {
   return (
     <div className="chartwrap">
       <svg className="chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-        <path d={area} fill="#eef2f6" />
+        <path d={area} fill="#eef2f6" data-testid="area-path" />
         <path d={ci} fill={accent} fillOpacity={0.18} />
         <line x1={x5} y1={top} x2={x5} y2={base} stroke={accent} strokeWidth={1} strokeDasharray="3 3" data-testid="marker-low" />
         <line x1={x95} y1={top} x2={x95} y2={base} stroke={accent} strokeWidth={1} strokeDasharray="3 3" data-testid="marker-high" />
@@ -111,7 +111,7 @@ export function OutputChart({ result }: { result: SimResult }) {
             fill={accent}
             data-testid="marker-label-low"
           >
-            {fmt(ciLow)}
+            {fmt(ciLow) !== fmt(ciHigh) ? `${fmt(ciLow)}–${fmt(ciHigh)}` : fmt(ciLow)}
           </text>
         ) : (
           <>

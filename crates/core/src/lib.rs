@@ -207,9 +207,15 @@ impl<'a> Equation<'a, FullyDefined> {
         while bucket <= *highest {
             buckets.push(bucket);
             counts.push(0);
-            bucket += bucket_size;
+            let next = bucket + bucket_size;
+            // No-progress guard: if IEEE-754 arithmetic makes next == bucket
+            // (step is smaller than ULP(bucket)), adding forever cannot help.
+            // Break out so the loop never hangs on a subnormal step.
+            if next == bucket {
+                break;
+            }
+            bucket = next;
         }
-        counts.resize(buckets.len(), 0);
 
         // Part two:
         //   For each value: compute which bucket it corresponds to using `bucket_size * (val % bucket_size)`
@@ -261,8 +267,10 @@ impl<'a> Equation<'a, FullyDefined> {
         // targets ~50–100 buckets regardless of output magnitude (R3: clamp is in
         // compute_histogram; degenerate range → step=1.0 → single bucket spike).
         let step = {
-            // series is guaranteed non-empty here: compute_histogram returns None only
-            // when len < 2, and we propagate that None as Err below.
+            // series may be empty here if every sample was non-finite (e.g. all-NaN or
+            // all-inf model).  In that case reduce(...) returns None and unwrap_or(0.0)
+            // yields lowest=highest=0.0, so compute_step returns the 1.0 default and
+            // compute_histogram(len 0) returns None, which propagates as Err below.
             let lowest = series.iter().copied().reduce(f64::min).unwrap_or(0.0);
             let highest = series.iter().copied().reduce(f64::max).unwrap_or(0.0);
             compute_step(lowest, highest)
@@ -424,11 +432,15 @@ pub fn compute_step(lowest: f64, highest: f64) -> f64 {
     let step = (highest - lowest) / 75.0;
     // Guard: step must always be strictly positive and finite. If arithmetic somehow
     // produces a non-positive or non-finite value, fall back to the degenerate default.
-    if step > 0.0 && step.is_finite() {
-        step
-    } else {
-        1.0
+    if !(step > 0.0 && step.is_finite()) {
+        return 1.0;
     }
+    // Clamp: if step is smaller than ~8 ULPs of the magnitude of the endpoints, the
+    // while loop in compute_histogram would spin without progress (bucket + step == bucket
+    // in IEEE-754).  Ensure step is large enough to always advance the loop.
+    let magnitude = lowest.abs().max(highest.abs());
+    let min_step = magnitude * f64::EPSILON * 8.0;
+    step.max(min_step)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1156,6 +1168,29 @@ mod tests {
             "bucket count {} must be in 50..=100 for range [0, 200_000]",
             buckets.len()
         );
+    }
+
+    /// Regression: subnormal step at large magnitude must not hang the loop.
+    ///
+    /// A tight cluster at ~1e13 with spread 0.01 gives compute_step a raw step of
+    /// ~1.3e-7, which is smaller than ULP(1e13) ≈ 2.2e-3. Without the no-progress
+    /// guard (and without the min-step clamp in compute_step), the while loop in
+    /// compute_histogram would spin forever. This test asserts: (a) it terminates and
+    /// returns Some, and (b) the result has a small, finite, non-zero bucket count.
+    #[test]
+    fn compute_histogram_subnormal_step_terminates_and_returns_some() {
+        // Series: a tight cluster at ~1e13 where the raw step would be subnormal.
+        let mut series: Vec<f64> = vec![1e13, 1e13 + 0.01];
+        // Compute the step as the engine would for this range.
+        let step = compute_step(series[0], series[1]);
+        assert!(step > 0.0 && step.is_finite(), "step must be positive and finite, got {}", step);
+
+        let result = Equation::<FullyDefined>::compute_histogram(&mut series, &step);
+        assert!(result.is_some(), "histogram must return Some for subnormal-step case");
+        let (buckets, counts) = result.unwrap();
+        assert!(!buckets.is_empty(), "buckets must not be empty");
+        assert!(buckets.len() <= 200, "bucket count {} must be finite and bounded", buckets.len());
+        assert_eq!(buckets.len(), counts.len(), "buckets and counts must have equal length");
     }
 
     /// Degenerate model: range(3, 3) — constant output — must return Ok with a

@@ -51,6 +51,16 @@ const NARROW: SimResult = {
   samples: 5000,
 };
 
+// Narrow spread where ciLow and ciHigh are distinct after rounding (49 vs 50)
+// but their pixel distance is < MIN_MARKER_SEP (sep ≈ 1.04 px with W=520, span=100).
+const NARROW_DISTINCT: SimResult = {
+  ciLow: 49.4,
+  ciHigh: 49.6,
+  buckets: [0, 50, 100],
+  counts: [5, 80, 5],
+  samples: 5000,
+};
+
 // Chart constants (must mirror OutputChart.tsx).
 const W = 520;
 
@@ -64,11 +74,9 @@ function xOf(val: number, lo: number, hi: number): number {
 describe('OutputChart — normal spread', () => {
   it('renders the filled area path', () => {
     const { container } = render(<OutputChart result={NORMAL} />);
-    const paths = container.querySelectorAll('path');
-    // area path starts at "M 0 <base>"
-    const areaPaths = Array.from(paths).filter((p) => p.getAttribute('d')?.startsWith('M 0'));
-    expect(areaPaths).toHaveLength(1);
-    expect(areaPaths[0].getAttribute('fill')).toBe('#eef2f6');
+    const areaPath = container.querySelector('[data-testid="area-path"]');
+    expect(areaPath).not.toBeNull();
+    expect(areaPath!.getAttribute('fill')).toBe('#eef2f6');
   });
 
   it('renders the blue outline path', () => {
@@ -136,12 +144,11 @@ describe('OutputChart — degenerate (buckets.length < 2)', () => {
     expect(label.textContent).toBe('42');
   });
 
-  it('does NOT render an svg with no children (blank svg guard)', () => {
+  it('svg contains exactly 2 children: spike line and label', () => {
     const { container } = render(<OutputChart result={DEGENERATE} />);
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
-    // The svg has content (spike line + label), not zero children.
-    expect(svg!.children.length).toBeGreaterThan(0);
+    expect(svg!.children.length).toBe(2);
   });
 });
 
@@ -211,5 +218,17 @@ describe('OutputChart — narrow spread (x5 ≈ x95)', () => {
     expect(labelLow).not.toBeNull();
     // narrow spread: high label collapsed into combined, so marker-label-high absent.
     expect(labelHigh).toBeNull();
+  });
+
+  it('combined label shows both bounds when they round to distinct integers', () => {
+    const { container } = render(<OutputChart result={NARROW_DISTINCT} />);
+    // ciLow=49.4 → fmt=49, ciHigh=49.6 → fmt=50; sep≈1.04 px < MIN_MARKER_SEP
+    const labelLow = container.querySelector('[data-testid="marker-label-low"]');
+    expect(labelLow).not.toBeNull();
+    // Both values must appear in the combined label (F-4: no silent info-loss).
+    expect(labelLow!.textContent).toContain('49');
+    expect(labelLow!.textContent).toContain('50');
+    // marker-label-high must not exist (collapsed into combined).
+    expect(container.querySelector('[data-testid="marker-label-high"]')).toBeNull();
   });
 });

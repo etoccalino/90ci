@@ -46,9 +46,7 @@ describe('Run — hard-wired sample count', () => {
     render(<App />);
 
     const user = userEvent.setup();
-    // Use getAllByRole in case cleanup left a prior render in the DOM; take [0].
-    const runButtons = screen.getAllByRole('button', { name: /run/i });
-    await user.click(runButtons[0]);
+    await user.click(screen.getByRole('button', { name: /run/i }));
 
     expect(simulateMock).toHaveBeenCalled();
     expect(simulateMock).toHaveBeenCalledWith(

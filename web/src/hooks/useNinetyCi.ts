@@ -9,7 +9,6 @@ import { firstValidationError } from '../validation';
 // Hard-wired sample count per the PRD (§1: fix samples at 5,000).
 const SAMPLES = 5_000;
 
-
 interface VarPayload {
   name: string;
   shape: string;
