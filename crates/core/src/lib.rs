@@ -374,8 +374,8 @@ pub fn simulate(
         }
         ValidEquation::Partial(()) => {
             // E-01: find the tokens in the equation that have no corresponding variable row.
-            // `var_names` was populated from the equation; we rebuild a temporary equation
-            // just to get the set, then diff against the supplied names.
+            // Call extract_variable_names directly on the equation string to get the token
+            // list, then diff against the supplied names.
             let eq_tokens = Equation::<UnderDefined>::extract_variable_names(eq);
             let supplied: HashSet<&str> = vars.iter().map(|v| v.name).collect();
             let mut missing: Vec<&str> = eq_tokens
@@ -515,17 +515,21 @@ mod tests {
 
     #[test]
     fn add_variable_incorrect_bounds() {
+        // lower=100 > upper=2 trips E-03 before E-11 (bounds are checked before shape).
         let mut eq = Equation::<UnderDefined>::new("A + B", None, None);
-        assert!(eq
-            .add_variable(
-                &(VariableDescription {
-                    name: "A",
-                    shape: "incorrect",
-                    lower: 100.,
-                    upper: 2.,
-                }),
-            )
-            .is_err());
+        let result = eq.add_variable(
+            &(VariableDescription {
+                name: "A",
+                shape: "incorrect",
+                lower: 100.,
+                upper: 2.,
+            }),
+        );
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("must be below"),
+            "inverted bounds must produce E-03 message (not E-11)"
+        );
     }
 
     #[test]
@@ -817,6 +821,39 @@ mod tests {
         );
     }
 
+    // E-12 before E-02: duplicate-name must fire even when neither variable is in the equation.
+    // Two vars named `Y` with equation `"X"`: must report duplicate-name, not not-used.
+    #[test]
+    fn simulate_duplicate_name_takes_precedence_over_not_used() {
+        let vars = vec![
+            VariableDescription {
+                name: "Y",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+            VariableDescription {
+                name: "Y",
+                shape: "uniform",
+                lower: 1.,
+                upper: 2.,
+            },
+        ];
+        let result = simulate("X", &vars, &100, &0.1);
+        assert!(result.is_err(), "expected Err for duplicate name, got Ok");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("names must be unique"),
+            "E-12 must fire before E-02, got: {}",
+            msg
+        );
+        assert!(
+            !msg.contains("not used"),
+            "E-02 must not fire when E-12 applies, got: {}",
+            msg
+        );
+    }
+
     // E-02: variable defined but not used in equation
     #[test]
     fn simulate_variable_not_used_returns_err() {
@@ -870,17 +907,14 @@ mod tests {
             lower: 3.,
             upper: 3.,
         }];
-        // X is always 3; model is constant, should produce Ok (not inverted-bounds error)
+        // X is always 3; a constant series has length >= 2 so compute_histogram runs fine,
+        // producing a single bucket with all samples. simulate must return Ok.
         let result = simulate("X", &vars, &100, &0.1);
-        // We don't assert Ok here because a constant series may produce a degenerate histogram;
-        // the key assertion is that it does NOT return the E-03 inverted-bounds message.
-        if let Err(e) = &result {
-            assert_ne!(
-                e.to_string(),
-                "`X`: 5th (3) must be below 95th (3).",
-                "equal bounds for range must not be treated as inverted (E-03)"
-            );
-        }
+        assert!(
+            result.is_ok(),
+            "equal bounds for range must succeed (not E-03), got: {:?}",
+            result.err()
+        );
     }
 
     // E-11: unsupported distribution shape — exact message must be preserved
@@ -943,15 +977,15 @@ mod tests {
         let result = simulate("A + B + C", &vars, &100, &0.1);
         assert!(result.is_err(), "expected Err for multiple missing tokens");
         let msg = result.unwrap_err().to_string();
+        // Both must appear backtick-quoted in the message (pinning the actual message format).
         assert!(
-            msg.contains("`B`") || msg.contains("`C`"),
-            "error message must name at least one missing token, got: {}",
+            msg.contains("`B`"),
+            "error message must name missing token B as `B`, got: {}",
             msg
         );
-        // Both must appear somewhere in the message
         assert!(
-            msg.contains('B') && msg.contains('C'),
-            "error message must name all missing tokens (B and C), got: {}",
+            msg.contains("`C`"),
+            "error message must name missing token C as `C`, got: {}",
             msg
         );
     }

@@ -220,6 +220,64 @@ fn simulate_inverted_bounds_returns_named_err() {
     );
 }
 
+/// E-11: unsupported distribution shape must produce the exact guidance message.
+#[wasm_bindgen_test]
+fn simulate_bad_shape_returns_err() {
+    use ninety_ci_wasm::simulate;
+
+    let vars = make_vars(&[("X", "poisson", 1.0, 2.0)]);
+    let result = simulate("X", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for bad shape")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("Unsupported distribution"),
+        "E-11: error must mention unsupported distribution, got: {}",
+        err_str
+    );
+    assert_eq!(
+        err_str,
+        "Unsupported distribution. Use either 'normal', 'range' or 'uniform'.",
+        "E-11: wrong error message"
+    );
+}
+
+/// E-01 (plural): equation with two missing tokens must name BOTH in the error,
+/// each backtick-quoted.
+#[wasm_bindgen_test]
+fn simulate_multiple_missing_tokens_names_all() {
+    use ninety_ci_wasm::simulate;
+
+    // Equation "A + B + C" with only "A" supplied → B and C are missing tokens (E-01 plural).
+    // Supplying "A" satisfies E-05b (non-empty vars) and E-02 (A is used).
+    let vars = make_vars(&[("A", "uniform", 1.0, 2.0)]);
+    let result = simulate("A + B + C", vars, 100, 0.1);
+
+    let err_str = result
+        .expect_err("expected Err for multiple missing tokens")
+        .as_string()
+        .expect("error JsValue must be a string");
+
+    assert!(
+        err_str.contains("`B`"),
+        "E-01 (plural): error must name missing token B, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("`C`"),
+        "E-01 (plural): error must name missing token C, got: {}",
+        err_str
+    );
+    assert!(
+        err_str.contains("are used in the equation but not defined"),
+        "E-01 (plural): error must use plural phrasing, got: {}",
+        err_str
+    );
+}
+
 /// E-01: equation token with no variable row must produce a message naming the undeclared token
 /// and the corrective action.
 #[wasm_bindgen_test]
